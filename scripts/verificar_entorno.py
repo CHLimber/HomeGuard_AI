@@ -216,6 +216,9 @@ def main() -> int:
     parser.add_argument("--sin-camaras", action="store_true", help="no intenta abrir las cámaras")
     parser.add_argument("--cargar-modelos", action="store_true", help="además de verificar archivos, carga cada modelo")
     args = parser.parse_args()
+    from homeguard.logs import consola_utf8
+
+    consola_utf8()
 
     print("== Python y paquetes ==")
     chequear_python()

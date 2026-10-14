@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from homeguard.sistema import Sistema
 
 log = logging.getLogger(__name__)
+SEGUNDOS_SIN_SENAL = 3.0
 CARPETA_WEB = Path(__file__).resolve().parent
 
 
@@ -99,7 +101,9 @@ def crear_app(sistema: Sistema, iniciar_sistema: bool = True) -> FastAPI:
         async def generador():
             ultimo = None
             while not await request.is_disconnected():
-                jpeg = sistema.pipeline.jpeg.get(camara_id) or sin_senal
+                jpeg = sistema.pipeline.jpeg.get(camara_id)
+                if jpeg is None or time.time() - sistema.pipeline.jpeg_t.get(camara_id, 0) > SEGUNDOS_SIN_SENAL:
+                    jpeg = sin_senal  # la cámara se cayó: no dejar congelada la última imagen
                 if jpeg is not ultimo:
                     ultimo = jpeg
                     yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "

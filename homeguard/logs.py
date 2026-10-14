@@ -9,11 +9,15 @@ from pathlib import Path
 FORMATO = "%(asctime)s %(levelname)-7s %(name)-28s %(message)s"
 
 
-def configurar_logs(nivel: str = "INFO", archivo: Path | None = None) -> None:
-    # UTF-8 también cuando la salida se redirige a un archivo (en Windows sería cp1252)
+def consola_utf8() -> None:
+    """UTF-8 también cuando la salida se redirige a un archivo o tubería (en Windows sería cp1252)."""
     for flujo in (sys.stdout, sys.stderr):
         if hasattr(flujo, "reconfigure"):
             flujo.reconfigure(encoding="utf-8", errors="replace")
+
+
+def configurar_logs(nivel: str = "INFO", archivo: Path | None = None) -> None:
+    consola_utf8()
     raiz = logging.getLogger()
     raiz.setLevel(nivel.upper())
     for h in list(raiz.handlers):

@@ -227,6 +227,9 @@ def main() -> None:
     parser.add_argument("--frames-python", type=int, default=2, help="repeticiones del bucle Python (es lento)")
     parser.add_argument("--ancho", type=int, default=None, help="ancho del frame (por defecto ancho_proceso)")
     args = parser.parse_args()
+    from homeguard.logs import consola_utf8
+
+    consola_utf8()
     print("Benchmark de preprocesamiento (ms por frame):")
     ejecutar(args.repeticiones, args.frames_python, args.ancho)
     print("Resultados en docs/benchmark.csv y docs/BENCHMARK.md")

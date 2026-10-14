@@ -65,10 +65,18 @@ def main() -> int:
     from homeguard.sistema import Sistema
     from homeguard.web.app import crear_app
 
+    host = args.host or cfg.servidor.host
+    puerto = args.puerto or cfg.servidor.puerto
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, puerto))
+        except OSError:
+            log.error("El puerto %d está ocupado: ¿HomeGuard ya está abierto en otra ventana? "
+                      "Cerralo o usá --puerto 8001", puerto)
+            return 1
+
     sistema = Sistema(demo=args.demo, sin_telegram=args.sin_telegram, ruta_config=Path(args.config))
     app = crear_app(sistema)
-    host = args.host or sistema.config.servidor.host
-    puerto = args.puerto or sistema.config.servidor.puerto
 
     print("\n" + "=" * 64)
     print(f" HomeGuard AI {'(MODO DEMO)' if args.demo else ''}")

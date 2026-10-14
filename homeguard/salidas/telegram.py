@@ -126,7 +126,7 @@ class EnviadorTelegram:
             tarea = self.cola.get()
             if tarea is None:
                 break
-            espera = 1.0
+            espera = min(1.0, self.cfg.reintento_max_s)
             while not self._detener.is_set():
                 edad_min = (time.time() - tarea.t_deteccion) / 60
                 if edad_min > self.cfg.descartar_tras_min:

@@ -19,6 +19,7 @@ from sqlalchemy import delete, select
 
 from homeguard.captura.camaras import GestorCamaras
 from homeguard.config import RUTA_CONFIG, Config, cargar_config, cargar_secretos, ruta_abs
+from homeguard.db import consultas
 from homeguard.db import modelos as m
 from homeguard.db.sesion import BaseDatos
 from homeguard.detectores.base import Zona
@@ -75,16 +76,13 @@ class Sistema:
     # -- configuración ------------------------------------------------------------
 
     def leer_overrides(self) -> dict[str, Any]:
-        with self.bd.sesion() as s:
-            return {o.clave: o.valor for o in s.scalars(select(m.ConfigOverride))}
+        return consultas.leer_overrides(self.bd)
 
     def _config_con_overrides(self) -> Config:
-        overrides = self.leer_overrides()
-        try:
-            return cargar_config(self.ruta_config, overrides, demo=self.demo)
-        except Exception as e:  # noqa: BLE001 - overrides inválidos: se ignoran, config.yaml manda
-            log.error("Los cambios guardados desde el dashboard son inválidos (%s); se usa config.yaml", e)
-            return cargar_config(self.ruta_config, demo=self.demo)
+        cfg, error = consultas.config_efectiva(self.bd, self.ruta_config, self.demo)
+        if error:  # overrides inválidos: se ignoran, config.yaml manda
+            log.error("Los cambios guardados desde el dashboard son inválidos (%s); se usa config.yaml", error)
+        return cfg
 
     def actualizar_overrides(self, cambios: dict[str, Any]) -> Config:
         """Valida y guarda cambios del dashboard. Lanza ValueError si la config resultante es inválida."""
@@ -131,11 +129,7 @@ class Sistema:
 
     def zonas(self, camara_id: str) -> list[Zona]:
         if camara_id not in self._zonas_cache:
-            with self.bd.sesion() as s:
-                filas = s.scalars(select(m.Zona).where(m.Zona.camara_id == camara_id).order_by(m.Zona.id))
-                self._zonas_cache[camara_id] = [
-                    Zona(id=z.id, camara_id=z.camara_id, nombre=z.nombre, tipo=z.tipo, puntos=z.puntos,
-                         referencia=z.referencia) for z in filas]
+            self._zonas_cache[camara_id] = consultas.zonas_de_camara(self.bd, camara_id)
         return self._zonas_cache[camara_id]
 
     def invalidar_zonas(self, camara_id: str | None = None) -> None:
@@ -148,17 +142,11 @@ class Sistema:
 
     def recargar_residentes(self) -> int:
         """Pasa los embeddings de la BD al detector de rostros. Devuelve cuántos vectores hay."""
-        import numpy as np
-
-        with self.bd.sesion() as s:
-            filas = s.execute(select(m.EmbeddingRostro.vector, m.Residente.nombre)
-                              .join(m.Residente, m.Residente.id == m.EmbeddingRostro.residente_id)).all()
-        vectores = [np.frombuffer(v, dtype=np.float32) for v, _ in filas]
-        nombres = [n for _, n in filas]
+        matriz, nombres = consultas.embeddings_residentes(self.bd)
         detector = self.pipeline.analizador.detectores.get("rostros")
         if detector is not None:
-            detector.fijar_residentes(np.array(vectores) if vectores else np.zeros((0, 128), np.float32), nombres)
-        return len(vectores)
+            detector.fijar_residentes(matriz, nombres)
+        return len(nombres)
 
     # -- ciclo de vida -----------------------------------------------------------
 

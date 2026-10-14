@@ -7,7 +7,7 @@
 | 2 — Bitwise + benchmark | ✅ hecha |
 | 3 — Detectores (fuego, piscina, caídas, rostros) | ✅ hecha |
 | 4 — Dashboard | ✅ hecha |
-| 5 — Robustez | ⏳ pendiente |
+| 5 — Robustez | ✅ hecha |
 | 6 — Documentación final | ⏳ pendiente |
 
 ## Fase 0
@@ -54,6 +54,19 @@
   (motor de reglas, cámaras, detectores). "Restaurar config.yaml" los borra.
 - Verificado: alta real de residente con YuNet+SFace vía API; capturas de todas las páginas con Edge headless.
 - 62 tests OK.
+
+## Fase 5
+- Cámaras: reconexión con espera exponencial (probado: la fuente aparece después y se conecta sola); el stream
+  muestra "sin señal" si el último frame tiene más de 3 s.
+- Telegram: cola en hilo propio, reintentos sin internet, errores permanentes (token/chat inválido) sin reintento,
+  descarte de eventos viejos, re-encolado de pendientes al arrancar. Encolar nunca bloquea.
+- Errores: un detector que falla no frena a los demás (log limitado a 1 cada 10 s); el hilo de procesamiento
+  sobrevive a cualquier excepción; mensaje claro si el puerto está ocupado.
+- Consola UTF-8 en todos los scripts (Windows usa cp1252 al redirigir la salida).
+- `scripts/evaluar_detector.py` (VP/FP/VN/FN, precisión, recall, F1 → docs/PRUEBAS.md) y
+  `scripts/reporte_latencias.py` (promedio, mediana, P95, % bajo 2 s → docs/PRUEBAS.md).
+- Consultas de BD compartidas en `homeguard/db/consultas.py`.
+- 73 tests OK.
 
 ## Problemas conocidos
 - El video sintético de fuego (elipses naranjas) activa la capa 1 pero el YOLO fire-smoke no lo reconoce como

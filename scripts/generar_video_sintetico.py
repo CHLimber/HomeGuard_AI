@@ -121,6 +121,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--carpeta", default=str(RAIZ / "data/videos_prueba/sinteticos"))
     args = parser.parse_args()
+    for flujo in (sys.stdout, sys.stderr):  # UTF-8 aunque la salida se redirija (Windows usa cp1252)
+        flujo.reconfigure(encoding="utf-8", errors="replace")
     for r in generar_todos(Path(args.carpeta)):
         print(f"[ok] {r}")
     return 0

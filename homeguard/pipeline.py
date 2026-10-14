@@ -34,6 +34,7 @@ class Pipeline:
         self._ultimo_numero: dict[str, int] = {}
         self._tiempos: dict[str, deque[float]] = {}
         self.jpeg: dict[str, bytes] = {}           # último frame anotado por cámara (stream MJPEG)
+        self.jpeg_t: dict[str, float] = {}         # cuándo se generó (para mostrar "sin señal" si es viejo)
         self.calibracion: dict[str, dict] = {}     # valores crudos de los detectores por cámara
         self.fps: dict[str, float] = {}            # FPS de procesamiento por cámara
         self.ms_por_frame: dict[str, float] = {}
@@ -57,23 +58,32 @@ class Pipeline:
     def _bucle(self) -> None:
         t_telemetria = 0.0
         while not self._detener.is_set():
-            cfg = self.sistema.config
-            periodo = 1.0 / cfg.procesamiento.fps_objetivo
-            inicio = time.time()
-            for cam in list(self.sistema.camaras.camaras.values()):
-                capturado = cam.leer()
-                if capturado is None or capturado.numero == self._ultimo_numero.get(cam.id):
-                    continue
-                self._ultimo_numero[cam.id] = capturado.numero
-                try:
-                    self.procesar(cam.id, capturado.imagen, cam.cfg.detectores, cam.cfg.nombre)
-                except Exception:  # noqa: BLE001
-                    log.exception("Error procesando la cámara %s", cam.id)
-            if inicio - t_telemetria >= cfg.procesamiento.intervalo_telemetria_s:
-                t_telemetria = inicio
-                self._emitir_telemetria()
-            restante = periodo - (time.time() - inicio)
-            self._detener.wait(max(restante, 0.005))
+            try:
+                t_telemetria = self._ciclo(t_telemetria)
+            except Exception:  # noqa: BLE001 - el hilo de procesamiento nunca debe morir
+                log.exception("Error inesperado en el ciclo de procesamiento; se continúa")
+                self._detener.wait(1.0)
+
+    def _ciclo(self, t_telemetria: float) -> float:
+        """Una vuelta por todas las cámaras. Devuelve el instante de la última telemetría enviada."""
+        cfg = self.sistema.config
+        periodo = 1.0 / cfg.procesamiento.fps_objetivo
+        inicio = time.time()
+        for cam in list(self.sistema.camaras.camaras.values()):
+            capturado = cam.leer()
+            if capturado is None or capturado.numero == self._ultimo_numero.get(cam.id):
+                continue
+            self._ultimo_numero[cam.id] = capturado.numero
+            try:
+                self.procesar(cam.id, capturado.imagen, cam.cfg.detectores, cam.cfg.nombre)
+            except Exception:  # noqa: BLE001 - una cámara con problemas no frena a las demás
+                log.exception("Error procesando la cámara %s", cam.id)
+        if inicio - t_telemetria >= cfg.procesamiento.intervalo_telemetria_s:
+            t_telemetria = inicio
+            self._emitir_telemetria()
+        restante = periodo - (time.time() - inicio)
+        self._detener.wait(max(restante, 0.005))
+        return t_telemetria
 
     def procesar(self, camara_id: str, imagen, detectores: list[str], nombre: str) -> list:
         """Analiza un frame de una cámara y despacha las alarmas que confirme el motor."""
@@ -93,6 +103,7 @@ class Pipeline:
         ok, buf = cv2.imencode(".jpg", anotado, [cv2.IMWRITE_JPEG_QUALITY, cfg.procesamiento.calidad_jpeg_stream])
         if ok:
             self.jpeg[camara_id] = buf.tobytes()
+            self.jpeg_t[camara_id] = time.time()
         self.calibracion[camara_id] = ctx.calibracion
         self.ms_por_frame[camara_id] = (time.time() - t) * 1000
         return disparos

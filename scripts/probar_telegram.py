@@ -48,6 +48,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--obtener-chat-id", action="store_true")
     args = parser.parse_args()
+    from homeguard.logs import consola_utf8
+
+    consola_utf8()
 
     s = cargar_secretos()
     if not s.telegram_token:

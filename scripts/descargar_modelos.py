@@ -59,6 +59,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--forzar", action="store_true", help="vuelve a descargar aunque ya existan")
     args = parser.parse_args()
+    for flujo in (sys.stdout, sys.stderr):  # UTF-8 aunque la salida se redirija (Windows usa cp1252)
+        flujo.reconfigure(encoding="utf-8", errors="replace")
     CARPETA.mkdir(exist_ok=True)
     errores = 0
     for nombre in MODELOS_ULTRALYTICS:
