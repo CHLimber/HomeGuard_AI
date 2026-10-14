@@ -1,0 +1,16 @@
+.venv/
+.env
+models/
+data/eventos/
+data/referencias/
+data/*.log
+data/videos_prueba/**/*.mp4
+data/videos_prueba/**/*.avi
+data/videos_prueba/**/*.json
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,0 +1,19 @@
+# HomeGuard AI - dependencias (Python 3.11 o 3.12)
+# En Windows, pip instala torch en versión CPU por defecto (no se fuerza CUDA).
+ultralytics>=8.3.0
+opencv-python>=4.10
+numpy>=1.26
+supervision>=0.25.0,<0.31  # sv.ByteTrack se elimina en 0.31
+fastapi>=0.115
+uvicorn[standard]>=0.30
+jinja2>=3.1
+python-multipart>=0.0.9
+sqlalchemy>=2.0
+pydantic>=2.7
+pyyaml>=6.0
+python-dotenv>=1.0
+requests>=2.32
+huggingface_hub>=0.24
+psutil>=5.9
+pytest>=8.0
+httpx>=0.27

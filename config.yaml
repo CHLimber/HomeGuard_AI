@@ -1,0 +1,182 @@
+# =============================================================================
+# HomeGuard AI - configuración principal
+# -----------------------------------------------------------------------------
+# Todos los umbrales del sistema están en este archivo. El dashboard
+# (Configuración) puede sobreescribirlos: esos cambios se guardan en la base de
+# datos (tabla "config") y se aplican encima de este archivo. El botón
+# "Restaurar config.yaml" del dashboard borra esos cambios.
+# Rutas relativas = relativas a la carpeta del proyecto.
+# =============================================================================
+
+servidor:
+  host: 0.0.0.0          # 0.0.0.0 = accesible desde otros dispositivos de la misma red Wi-Fi
+  puerto: 8000           # el panel se abre en http://IP-DE-LA-LAPTOP:8000/alarma
+
+general:
+  base_datos: data/homeguard.db            # SQLite con residentes, zonas y eventos
+  carpeta_eventos: data/eventos            # fotos de cada evento
+  carpeta_referencias: data/referencias    # imágenes de referencia de puertas cerradas
+  archivo_log: data/homeguard.log          # log rotativo (además de la consola)
+  nivel_log: INFO                          # DEBUG, INFO, WARNING o ERROR
+
+procesamiento:
+  ancho_proceso: 640       # cada frame se reduce a este ancho (px) antes de analizarlo
+  fps_objetivo: 10         # máximo de ciclos de análisis por segundo (por cámara)
+  hilos_torch: 4           # hilos de CPU para los modelos YOLO
+  imgsz_yolo: 480          # tamaño de entrada de los YOLO (más chico = más rápido, menos preciso)
+  fps_stream: 10           # FPS del video MJPEG que ve el dashboard
+  calidad_jpeg_stream: 70  # calidad JPEG del stream del dashboard (1-100)
+  intervalo_telemetria_s: 0.5  # cada cuánto se envían FPS, CPU y valores de calibración al dashboard
+
+captura:
+  reintento_inicial_s: 1.0   # espera antes del primer reintento si una cámara se cae
+  reintento_max_s: 15.0      # espera máxima entre reintentos (crece de forma exponencial)
+  timeout_sin_frames_s: 5.0  # si una cámara no entrega frames en este tiempo, se reconecta
+
+preproceso:
+  bits_movimiento: 4         # bits más significativos del gris que se comparan con XOR (1-8)
+  apertura_movimiento_px: 3  # tamaño del kernel que limpia ruido de la máscara de movimiento (0 = sin limpieza)
+  bits_color: 3              # bits por canal para el índice de color de la tabla de fuego (3 => 512 colores)
+
+# -----------------------------------------------------------------------------
+# Cámaras. "fuente" puede ser:
+#   - un número: índice de webcam (0 = webcam de la laptop)
+#   - una URL: IP Webcam -> http://IP:8080/video ; DroidCam -> http://IP:4747/video
+#   - la ruta de un archivo de video (se reproduce en bucle)
+# "detectores": qué anomalías se buscan en esa cámara. Los que dependen de
+# zonas (rostros, piscina, puerta) solo corren si la cámara tiene esa zona.
+# -----------------------------------------------------------------------------
+camaras:
+  laptop:
+    nombre: Webcam de la laptop
+    fuente: 0
+    activa: true
+    detectores: [rostros, fuego, caidas, puerta, piscina]
+  celular1:
+    nombre: Celular 1 (entrada)
+    fuente: http://192.168.1.50:8080/video
+    activa: false
+    detectores: [rostros, puerta]
+  celular2:
+    nombre: Celular 2 (patio / piscina)
+    fuente: http://192.168.1.51:8080/video
+    activa: false
+    detectores: [piscina, fuego, caidas]
+
+# -----------------------------------------------------------------------------
+# Motor de reglas: es el ÚNICO que decide si suena la alarma.
+#   votos_n / votos_m: hay alarma si la condición se cumplió en al menos N de
+#                      los últimos M frames analizados de esa (cámara, zona).
+#   cooldown_s: después de una alarma de un (tipo, zona), no se repite durante
+#               este tiempo.
+# -----------------------------------------------------------------------------
+alarmas:
+  intrusion: {votos_n: 5, votos_m: 5, cooldown_s: 60}   # N = M => K frames consecutivos con rostro desconocido
+  piscina:   {votos_n: 3, votos_m: 5, cooldown_s: 60}
+  fuego:     {votos_n: 3, votos_m: 5, cooldown_s: 60}   # capa 2 > umbral en 3 de 5 frames
+  caida:     {votos_n: 1, votos_m: 1, cooldown_s: 120}  # el detector ya exige descenso + 5 s de inmovilidad
+  puerta:    {votos_n: 1, votos_m: 1, cooldown_s: 60}   # el detector ya exige 2 s de cambio sostenido
+
+motor:
+  auto_limpiar_s: 0   # segundos tras los cuales el estado vuelve solo a 0 (0 = queda sonando hasta "SILENCIAR")
+
+# YOLOv8n general (COCO). Se comparte entre piscina y rostros (para saber si hay
+# alguien en la zona "acceso"), así corre una sola vez por frame.
+yolo_general:
+  modelo: models/yolov8n.pt
+  confianza: 0.40          # confianza mínima de una detección de persona/mascota
+  clases: [0, 15, 16]      # COCO: 0=person, 15=cat, 16=dog
+
+detectores:
+  rostros:
+    modelo_detector: models/face_detection_yunet_2023mar.onnx
+    modelo_reconocedor: models/face_recognition_sface_2021dec.onnx
+    umbral_similitud: 0.363      # similitud coseno mínima para considerar que el rostro es de un residente (OpenCV Zoo)
+    confianza_rostro: 0.70       # confianza mínima de YuNet para aceptar un rostro
+    nms: 0.30                    # supresión de no-máximos de YuNet
+    tamano_min_rostro_px: 40     # rostros más chicos que esto (en la imagen original) se ignoran
+    usar_resolucion_original: true  # busca rostros en el frame a resolución completa (mejor a distancia)
+    exigir_persona_yolo: true    # solo busca rostros si YOLO ve una persona dentro de la zona "acceso"
+
+  piscina:
+    tiempo_sin_supervisor_s: 2.0      # (a) segundos con alguien en la piscina sin adulto en el borde antes de marcar
+    inmovil_desplazamiento_px: 15     # (b) si el centro se mueve menos que esto (px del frame de proceso)...
+    inmovil_tiempo_s: 10.0            # ...durante este tiempo dentro de la piscina => posible ahogamiento
+    olvidar_track_s: 3.0              # se descarta el historial de un tracker_id que no aparece en este tiempo
+
+  fuego:
+    modelo: models/fire_smoke_yolov8n.pt
+    hue_min: 0             # tono mínimo (escala OpenCV 0-180) considerado "color fuego"
+    hue_max: 35            # tono máximo (35 ~ amarillo)
+    sat_min: 100           # saturación mínima (0-255)
+    val_min: 150           # brillo mínimo (0-255)
+    umbral_capa1_pct: 0.30 # % de píxeles de la zona que deben ser color fuego Y en movimiento para activar la capa 2
+    confianza_capa2: 0.50  # confianza mínima del YOLO fire-smoke
+    clases_capa2: [0, 1]   # 0=smoke, 1=fire
+
+  caidas:
+    modelo: models/yolov8n-pose.pt
+    confianza: 0.40               # confianza mínima de la persona detectada
+    cada_n_frames: 2              # la pose se calcula cada N frames (ahorra CPU)
+    confianza_keypoint: 0.30      # keypoints con menos confianza se ignoran
+    ratio_min: 1.4                # ancho/alto del bbox por encima de esto => cuerpo horizontal
+    angulo_max_grados: 45         # torso (hombros->caderas) a menos de este ángulo de la horizontal
+    ventana_descenso_s: 1.0       # el paso de "de pie" a "en el suelo" tiene que ocurrir en menos de esto
+    descenso_min_relativo: 0.25   # el centro tiene que bajar al menos esta fracción de la altura de la persona de pie
+    radio_asociacion_px: 120      # distancia horizontal máxima para asociar la persona caída con la que estaba de pie
+    inmovil_desplazamiento_px: 20 # movimiento máximo del centro para considerarla inmóvil
+    inmovil_tiempo_s: 5.0         # inmovilidad necesaria después de la caída
+    olvidar_tras_s: 3.0           # si la persona caída no se ve durante este tiempo, se descarta
+
+  puerta:
+    metodo: absdiff          # "absdiff" (diferencia de grises) o "xor" (XOR de imágenes binarizadas)
+    umbral_diferencia: 35    # absdiff: diferencia de gris mínima para contar un píxel como cambiado
+    umbral_binarizacion: 0   # xor: umbral de binarización (0 = Otsu automático)
+    desenfoque_px: 5         # desenfoque previo para reducir ruido (0 = sin desenfoque)
+    porcentaje_min: 25.0     # % de píxeles de la zona cambiados para considerar la puerta abierta
+    duracion_min_s: 2.0      # tiempo que el cambio tiene que sostenerse
+    horarios_permitidos: []  # ej. ["07:00-22:00"]: dentro de estos rangos la puerta NO dispara alarma. [] = vigilar siempre
+    referencia_automatica: true  # si no hay referencia capturada, usa el primer frame como "puerta cerrada"
+
+telegram:
+  activo: true             # false = no envía nada (solo log); también con: python run.py --sin-telegram
+  ancho_foto: 640          # la foto se reduce a este ancho
+  calidad_jpeg: 70         # calidad JPEG de la foto enviada
+  timeout_s: 10            # timeout de cada intento de envío
+  reintento_max_s: 60      # espera máxima entre reintentos si no hay internet
+  descartar_tras_min: 120  # eventos más viejos que esto ya no se envían
+
+panel:
+  latencia_objetivo_ms: 2000   # requisito: detección -> panel/Telegram en menos de esto (se marca en el historial)
+
+# -----------------------------------------------------------------------------
+# Modo demo: python run.py --demo
+# Usa archivos de video en bucle como si fueran cámaras y una base de datos
+# aparte (no ensucia el historial real). Si los videos sintéticos no existen se
+# generan solos. Podés agregar acá tus propios videos de data/videos_prueba/.
+# -----------------------------------------------------------------------------
+demo:
+  base_datos: data/homeguard_demo.db
+  camaras:
+    demo_puerta:
+      nombre: Demo - puerta (sintético)
+      fuente: data/videos_prueba/sinteticos/puerta.mp4
+      activa: true
+      detectores: [puerta]
+    demo_fuego:
+      nombre: Demo - fuego (sintético)
+      fuente: data/videos_prueba/sinteticos/fuego.mp4
+      activa: true
+      detectores: [fuego]
+    demo_zona:
+      nombre: Demo - objeto que entra a una zona (sintético)
+      fuente: data/videos_prueba/sinteticos/zona.mp4
+      activa: true
+      detectores: [piscina]
+  # Zonas que se crean solas en la BD demo si la cámara no tiene ninguna.
+  # Coordenadas normalizadas (0-1) respecto del ancho/alto del frame.
+  zonas:
+    - {camara: demo_puerta, nombre: Puerta principal, tipo: puerta, puntos: [[0.40, 0.20], [0.60, 0.20], [0.60, 0.85], [0.40, 0.85]]}
+    - {camara: demo_fuego, nombre: Cocina, tipo: fuego, puntos: [[0.20, 0.25], [0.80, 0.25], [0.80, 0.90], [0.20, 0.90]]}
+    - {camara: demo_zona, nombre: Piscina, tipo: piscina, puntos: [[0.50, 0.30], [0.95, 0.30], [0.95, 0.90], [0.50, 0.90]]}
+    - {camara: demo_zona, nombre: Borde, tipo: borde_piscina, puntos: [[0.35, 0.30], [0.48, 0.30], [0.48, 0.90], [0.35, 0.90]]}
