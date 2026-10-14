@@ -34,7 +34,7 @@ def mascara_roi(alto: int, ancho: int, poligonos: Sequence) -> Mascara:
     """Une varios polígonos en una sola máscara con OR."""
     mascara = np.zeros((alto, ancho), dtype=np.uint8)
     for pts in poligonos:
-        mascara = np.bitwise_or(mascara, mascara_poligono(alto, ancho, pts))
+        mascara = cv2.bitwise_or(mascara, mascara_poligono(alto, ancho, pts))
     return mascara
 
 
@@ -44,14 +44,13 @@ def aplicar_mascara(img: np.ndarray, mascara: Mascara) -> np.ndarray:
     x AND 255 = x   (dentro de la zona se conserva el valor)
     x AND 0   = 0   (fuera de la zona se borra)
     """
-    if img.ndim == 3:
-        mascara = mascara[:, :, None]  # broadcasting a los 3 canales
-    return np.bitwise_and(img, mascara)
+    return cv2.bitwise_and(img, img, mask=mascara)
 
 
 def combinar_mascaras(*mascaras: Mascara, modo: str = "and") -> Mascara:
     """Combina máscaras: 'and' = intersección, 'or' = unión, 'xor' = diferencia simétrica."""
-    operaciones = {"and": np.bitwise_and, "or": np.bitwise_or, "xor": np.bitwise_xor}
+    # las versiones de cv2 hacen lo mismo que np.bitwise_* pero con instrucciones SIMD (~10x más rápido)
+    operaciones = {"and": cv2.bitwise_and, "or": cv2.bitwise_or, "xor": cv2.bitwise_xor}
     if modo not in operaciones:
         raise ValueError(f"modo desconocido: {modo}")
     resultado = mascaras[0]
@@ -64,12 +63,25 @@ def combinar_mascaras(*mascaras: Mascara, modo: str = "and") -> Mascara:
 # Cuantización con desplazamientos (>>, <<)
 # ---------------------------------------------------------------------------
 
+def mascara_bits_altos(bits: int) -> int:
+    """Byte con los `bits` más significativos encendidos. Ej. bits=4 -> (0xFF << 4) & 0xFF = 0b1111_0000."""
+    return (0xFF << (8 - bits)) & 0xFF
+
+
 def cuantizar(img: np.ndarray, bits: int) -> np.ndarray:
     """Conserva solo los `bits` más significativos de cada byte.
 
-    (x >> s) << s con s = 8 - bits pone en 0 los bits bajos (el "ruido" fino).
+    Dos formas equivalentes:
+      (x >> s) << s          con s = 8 - bits (desplazamientos)
+      x AND mascara_bits_altos(bits)          (una sola AND, más rápida)
     Ej. bits=4: 0b1011_0110 (182) -> 0b1011_0000 (176).
     """
+    # con un escalar se usa NumPy: cv2.bitwise_and(img, escalar) falla con imágenes muy chicas
+    return np.bitwise_and(img, np.uint8(mascara_bits_altos(bits)))
+
+
+def cuantizar_desplazando(img: np.ndarray, bits: int) -> np.ndarray:
+    """Versión con desplazamientos (didáctica; da el mismo resultado que cuantizar)."""
     s = 8 - bits
     return np.left_shift(np.right_shift(img, s), s)
 
@@ -86,7 +98,7 @@ def mascara_movimiento_xor(gris_anterior: np.ndarray, gris_actual: np.ndarray,
     los píxeles donde cambiaron los bits altos (cambio real, no ruido del
     sensor). Una apertura morfológica elimina puntos sueltos.
     """
-    diferencia = np.bitwise_xor(cuantizar(gris_anterior, bits), cuantizar(gris_actual, bits))
+    diferencia = cv2.bitwise_xor(cuantizar(gris_anterior, bits), cuantizar(gris_actual, bits))
     # cualquier bit encendido -> 255
     _, mascara = cv2.threshold(diferencia, 0, 255, cv2.THRESH_BINARY)
     if apertura_px > 0:
@@ -106,43 +118,41 @@ def binarizar(gris: np.ndarray, umbral: int = 0) -> Mascara:
 
 def xor_binarizadas(a: Mascara, b: Mascara) -> Mascara:
     """XOR de dos imágenes binarizadas: 255 donde difieren, 0 donde son iguales."""
-    return np.bitwise_xor(a, b)
+    return cv2.bitwise_xor(a, b)
 
 
 # ---------------------------------------------------------------------------
 # Color por tabla de búsqueda (LUT) indexada con bits empaquetados
 # ---------------------------------------------------------------------------
 
-def indice_color(bgr: np.ndarray, bits: int = 3) -> np.ndarray:
-    """Empaqueta los bits altos de R, G y B en un solo índice entero.
+def indice_rgb332(bgr: np.ndarray) -> np.ndarray:
+    """Empaqueta cada píxel en UN byte con el formato RGB332 (3 bits R, 3 bits G, 2 bits B).
 
-    Con bits=3: índice = (R>>5)<<6 | (G>>5)<<3 | (B>>5)   -> 0..511
-    Ej. naranja BGR (0, 140, 255): R>>5=7, G>>5=4, B>>5=0
-        -> 7<<6 | 4<<3 | 0 = 448 | 32 | 0 = 480
+        índice = (R & 0xE0) | ((G & 0xE0) >> 3) | (B >> 6)
+                  RRR0_0000    000G_GG00           0000_00BB
+    Ej. naranja BGR (0, 140, 255):
+        R & 0xE0 = 1110_0000 (224) ; (G & 0xE0) >> 3 = 1000_0000 >> 3 = 0001_0000 (16) ; B >> 6 = 0
+        índice = 224 | 16 | 0 = 240 = 0b1111_0000
+    Como el índice cabe en 8 bits, la clasificación se hace con cv2.LUT (tabla de 256 entradas).
     """
-    s = 8 - bits
-    b = np.right_shift(bgr[:, :, 0], s).astype(np.uint16)
-    g = np.right_shift(bgr[:, :, 1], s).astype(np.uint16)
-    r = np.right_shift(bgr[:, :, 2], s).astype(np.uint16)
-    return np.bitwise_or(np.bitwise_or(np.left_shift(r, 2 * bits), np.left_shift(g, bits)), b)
+    b, g, r = cv2.split(bgr)
+    alto3 = np.uint8(0xE0)
+    return cv2.bitwise_or(cv2.bitwise_or(np.bitwise_and(r, alto3), np.right_shift(np.bitwise_and(g, alto3), 3)),
+                          np.right_shift(b, 6))
 
 
-def construir_lut_fuego(bits: int, hue_min: int, hue_max: int, sat_min: int, val_min: int) -> np.ndarray:
-    """Precalcula, para cada uno de los 2^(3*bits) colores cuantizados, si es "color fuego".
+def construir_lut_fuego(hue_min: int, hue_max: int, sat_min: int, val_min: int) -> np.ndarray:
+    """Precalcula, para cada uno de los 256 colores RGB332, si es "color fuego" (255) o no (0).
 
-    Se evalúa la regla HSV una sola vez sobre el color central de cada celda;
-    luego clasificar un frame entero es solo indexar la tabla (lut[indice]).
+    La regla HSV se evalúa una sola vez sobre el color central de cada celda;
+    después clasificar un frame entero es solo cv2.LUT(indice, lut).
     """
-    n = 1 << (3 * bits)
-    s = 8 - bits
-    idx = np.arange(n, dtype=np.uint16)
-    mitad = (1 << s) >> 1  # centro de la celda
-    mask_canal = (1 << bits) - 1
-    r = (((idx >> (2 * bits)) & mask_canal) << s) + mitad
-    g = (((idx >> bits) & mask_canal) << s) + mitad
-    b = ((idx & mask_canal) << s) + mitad
-    colores = np.stack([b, g, r], axis=-1).astype(np.uint8).reshape(1, n, 3)
-    hsv = cv2.cvtColor(colores, cv2.COLOR_BGR2HSV).reshape(n, 3)
+    idx = np.arange(256, dtype=np.uint16)
+    r = (idx & 0xE0) + 16                 # bits 7-5 -> centro de la celda de 32 valores
+    g = ((idx & 0x1C) << 3) + 16          # bits 4-2
+    b = ((idx & 0x03) << 6) + 32          # bits 1-0 -> celda de 64 valores
+    colores = np.stack([b, g, r], axis=-1).astype(np.uint8).reshape(1, 256, 3)
+    hsv = cv2.cvtColor(colores, cv2.COLOR_BGR2HSV).reshape(256, 3)
     h, sat, val = hsv[:, 0], hsv[:, 1], hsv[:, 2]
     if hue_min <= hue_max:
         tono_ok = (h >= hue_min) & (h <= hue_max)
@@ -152,9 +162,9 @@ def construir_lut_fuego(bits: int, hue_min: int, hue_max: int, sat_min: int, val
     return np.where(es_fuego, 255, 0).astype(np.uint8)
 
 
-def mascara_color_lut(bgr: np.ndarray, lut: np.ndarray, bits: int = 3) -> Mascara:
-    """Clasifica cada píxel con la LUT: una sola indexación vectorizada."""
-    return lut[indice_color(bgr, bits)]
+def mascara_color_lut(bgr: np.ndarray, lut: np.ndarray) -> Mascara:
+    """Clasifica cada píxel con la tabla: una sola búsqueda vectorizada."""
+    return cv2.LUT(indice_rgb332(bgr), lut)
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +178,7 @@ def porcentaje_activos(mascara: Mascara, roi: Mascara | None = None) -> float:
         activos = cv2.countNonZero(mascara)
     else:
         total = cv2.countNonZero(roi)
-        activos = cv2.countNonZero(np.bitwise_and(mascara, roi))
+        activos = cv2.countNonZero(cv2.bitwise_and(mascara, roi))
     return 100.0 * activos / total if total else 0.0
 
 

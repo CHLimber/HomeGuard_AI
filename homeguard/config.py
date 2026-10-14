@@ -66,7 +66,6 @@ class CfgCaptura(_Base):
 class CfgPreproceso(_Base):
     bits_movimiento: int = Field(4, ge=1, le=8)
     apertura_movimiento_px: int = Field(3, ge=0)
-    bits_color: int = Field(3, ge=1, le=5)
 
 
 class CfgCamara(_Base):

@@ -4,7 +4,7 @@
 |---|---|
 | 0 — Base (repo, venv, modelos, config, verificar_entorno) | ✅ hecha |
 | 1 — Esqueleto de punta a punta | ✅ hecha |
-| 2 — Bitwise + benchmark | ⏳ pendiente |
+| 2 — Bitwise + benchmark | ✅ hecha |
 | 3 — Detectores (fuego, piscina, caídas, rostros) | ⏳ pendiente |
 | 4 — Dashboard | ⏳ pendiente |
 | 5 — Robustez | ⏳ pendiente |
@@ -24,6 +24,15 @@
 - Verificado con `run.py --demo` + panel WebSocket simulado: la puerta sintética dispara a los ~6 s del video
   (4 s apertura + 2 s sostenido); latencia detección→panel medida: 4,5–6 ms en localhost.
 - 23 tests OK.
+
+## Fase 2
+- `bitwise.py`: ROI (AND), unión de zonas (OR), movimiento (XOR de cuantizados), cuantización (AND con máscara de
+  bits altos ≡ `(x>>s)<<s`), índice RGB332 (`&`, `>>`, `|`) + `cv2.LUT`, XOR de binarizadas (puerta).
+- Integrado: el analizador calcula la máscara de movimiento XOR en cada frame; la puerta usa AND/XOR.
+- `python -m homeguard.preproceso.benchmark` → `docs/BENCHMARK.md` + `docs/benchmark.csv` (5 variantes).
+  Resultado real: vectorizar ≈ 200x, ROI ≈ 3x; a igual área el HSV nativo de OpenCV es algo más rápido
+  que la LUT RGB332 (documentado tal cual en `docs/BITWISE.md`).
+- 35 tests OK.
 
 ## Problemas conocidos
 - `sv.ByteTrack` está deprecado en supervision 0.28+ y se elimina en 0.31 → `requirements.txt` fija `<0.31`.

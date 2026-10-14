@@ -36,7 +36,6 @@ captura:
 preproceso:
   bits_movimiento: 4         # bits más significativos del gris que se comparan con XOR (1-8)
   apertura_movimiento_px: 3  # tamaño del kernel que limpia ruido de la máscara de movimiento (0 = sin limpieza)
-  bits_color: 3              # bits por canal para el índice de color de la tabla de fuego (3 => 512 colores)
 
 # -----------------------------------------------------------------------------
 # Cámaras. "fuente" puede ser:
