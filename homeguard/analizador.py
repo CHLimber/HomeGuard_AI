@@ -24,10 +24,19 @@ log = logging.getLogger(__name__)
 
 def crear_detectores(modelos: Modelos) -> dict[str, Detector]:
     """Instancia todos los detectores disponibles (clave = nombre en config.yaml)."""
+    from homeguard.detectores.caidas import DetectorCaidas
+    from homeguard.detectores.fuego import DetectorFuego
+    from homeguard.detectores.piscina import DetectorPiscina
     from homeguard.detectores.puerta import DetectorPuerta
+    from homeguard.detectores.rostros import DetectorRostros
 
-    detectores: dict[str, Detector] = {"puerta": DetectorPuerta()}
-    return detectores
+    return {
+        "rostros": DetectorRostros(modelos),
+        "piscina": DetectorPiscina(),
+        "fuego": DetectorFuego(modelos),
+        "caidas": DetectorCaidas(modelos),
+        "puerta": DetectorPuerta(),
+    }
 
 
 def redimensionar(imagen: np.ndarray, ancho: int) -> np.ndarray:

@@ -5,7 +5,7 @@
 | 0 — Base (repo, venv, modelos, config, verificar_entorno) | ✅ hecha |
 | 1 — Esqueleto de punta a punta | ✅ hecha |
 | 2 — Bitwise + benchmark | ✅ hecha |
-| 3 — Detectores (fuego, piscina, caídas, rostros) | ⏳ pendiente |
+| 3 — Detectores (fuego, piscina, caídas, rostros) | ✅ hecha |
 | 4 — Dashboard | ⏳ pendiente |
 | 5 — Robustez | ⏳ pendiente |
 | 6 — Documentación final | ⏳ pendiente |
@@ -34,5 +34,20 @@
   que la LUT RGB332 (documentado tal cual en `docs/BITWISE.md`).
 - 35 tests OK.
 
+## Fase 3
+- Fuego: capa 1 (RGB332+LUT AND movimiento XOR AND zona) → capa 2 YOLO fire-smoke solo si capa 1 supera el umbral.
+- Piscina: YOLO general + ByteTrack + PolygonZone; reglas (a) sin supervisor en el borde y (b) tracker inmóvil.
+- Caídas: YOLOv8n-pose cada N frames; ratio + ángulo de torso + descenso brusco + inmovilidad (asociación por cercanía).
+- Rostros: YuNet + SFace, solo si YOLO ve una persona en la zona "acceso"; similitud coseno vs residentes.
+- Página `/calibracion` con los valores crudos de cada detector junto a su umbral (en rojo si lo supera).
+- Verificado con modelos reales sobre una foto (example_outputs/largest_selfie.jpg del repo de YuNet):
+  11 rostros; mismo rostro espejado/con otro brillo → similitud 0,954; rostros distintos → 0,07–0,20.
+- Demo: 3 cámaras a 9,2 FPS cada una; YOLO ≈ 35 ms/frame en esta CPU.
+- 56 tests OK (detectores con modelos simulados a partir de la verdad de terreno de los videos sintéticos).
+
 ## Problemas conocidos
+- El video sintético de fuego (elipses naranjas) activa la capa 1 pero el YOLO fire-smoke no lo reconoce como
+  fuego (esperable): para ver una alarma de fuego real hace falta un video de una llama real.
+- El rectángulo del video sintético "zona" no es una persona para YOLO: en `--demo` la piscina no dispara;
+  sus reglas se prueban en los tests con detecciones simuladas.
 - `sv.ByteTrack` está deprecado en supervision 0.28+ y se elimina en 0.31 → `requirements.txt` fija `<0.31`.

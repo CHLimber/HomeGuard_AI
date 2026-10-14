@@ -74,6 +74,7 @@ class EstadoCamara:
         self.indice = 0
         self.tracker: Any = None  # sv.ByteTrack, se crea al primer uso
         self._mascaras: dict[tuple, np.ndarray] = {}
+        self._poligonos: dict[tuple, Any] = {}
 
     def mascara_zona(self, zona: Zona, alto: int, ancho: int) -> np.ndarray:
         clave = (zona.id, alto, ancho, tuple(map(tuple, zona.puntos)))
@@ -82,6 +83,24 @@ class EstadoCamara:
                 self._mascaras.clear()
             self._mascaras[clave] = bitwise.mascara_poligono(alto, ancho, zona.puntos_px(ancho, alto))
         return self._mascaras[clave]
+
+    def poligono_zona(self, zona: Zona, alto: int, ancho: int) -> Any:
+        """sv.PolygonZone de la zona (cacheado). Una detección está dentro si su punto inferior central lo está."""
+        import supervision as sv
+
+        clave = (zona.id, alto, ancho, tuple(map(tuple, zona.puntos)))
+        if clave not in self._poligonos:
+            if len(self._poligonos) > 64:
+                self._poligonos.clear()
+            self._poligonos[clave] = sv.PolygonZone(polygon=zona.puntos_px(ancho, alto).astype(np.int64),
+                                                    triggering_anchors=(sv.Position.BOTTOM_CENTER,))
+        return self._poligonos[clave]
+
+
+def zona_global(camara_id: str) -> Zona:
+    """Zona que cubre toda la imagen (para detectores que no requieren zona dibujada)."""
+    return Zona(id=-1, camara_id=camara_id, nombre=ZONA_GLOBAL, tipo="global",
+                puntos=[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
 
 
 class Contexto:
@@ -126,6 +145,12 @@ class Contexto:
 
     def mascara_zona(self, zona: Zona) -> np.ndarray:
         return self.estado.mascara_zona(zona, self.alto, self.ancho)
+
+    def dentro_de_zona(self, zona: Zona, detecciones: sv.Detections) -> np.ndarray:
+        """Vector booleano: qué detecciones están dentro de la zona."""
+        if len(detecciones) == 0:
+            return np.zeros(0, dtype=bool)
+        return self.estado.poligono_zona(zona, self.alto, self.ancho).trigger(detecciones)
 
     def detecciones_generales(self) -> sv.Detections:
         """Personas/mascotas con tracker_id (YOLO general + ByteTrack), calculado una vez por frame."""

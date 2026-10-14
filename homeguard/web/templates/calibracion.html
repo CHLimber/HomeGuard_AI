@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block titulo %}Calibración{% endblock %}
+{% block contenido %}
+<div class="cabecera">
+  <h1>Modo calibración</h1>
+  <a class="boton secundario" href="/configuracion">Ajustar umbrales →</a>
+</div>
+<p style="max-width:62em;margin-top:0">
+  Valores crudos que calcula cada detector en este momento, al lado del umbral que los convierte en alarma.
+  Poné la escena real frente a la cámara (puerta abierta, persona acostada, rostro desconocido), mirá qué valores
+  aparecen y ajustá los umbrales en Configuración. Los valores en <b style="color:var(--rojo)">rojo</b> superan su umbral.
+</p>
+<div class="rejilla" id="calibracion"><p class="vacio">Esperando datos de las cámaras…</p></div>
+<h2 style="margin-top:22px">Tiempo por detector</h2>
+<div class="metricas" id="tiempos"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const NOMBRES = { puerta: "Puerta", fuego: "Fuego / humo", piscina: "Piscina", caidas: "Caídas", rostros: "Rostros (intrusión)" };
+// pares valor -> umbral (para marcar en rojo lo que ya dispararía)
+const PARES = {
+  porcentaje_cambiado: ["umbral_porcentaje", ">="], segundos_abierta: null,
+  capa1_pct_color_y_movimiento: ["umbral_capa1_pct", ">="], capa2_confianza: ["umbral_capa2", ">"],
+  segundos_sin_supervisor: ["umbral_sin_supervisor_s", ">="], max_segundos_inmovil: ["umbral_inmovil_s", ">="],
+  descenso_relativo: ["umbral_descenso", ">="], segundos_inmovil: ["umbral_inmovil_s", ">="],
+};
+
+function valor(v) {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "boolean") return v ? "sí" : "no";
+  if (Array.isArray(v)) return v.length ? v.map(valor).join("<br>") : "—";
+  if (typeof v === "object") return Object.entries(v).map(([k, x]) => `${escapar(k)}: ${valor(x)}`).join(" · ");
+  return escapar(v);
+}
+
+function filas(datos) {
+  return Object.entries(datos).filter(([k]) => !k.startsWith("umbral")).map(([k, v]) => {
+    const par = PARES[k];
+    let supera = false, umbral = "";
+    if (par && datos[par[0]] !== undefined) {
+      umbral = `${par[1]} ${datos[par[0]]}`;
+      supera = par[1] === ">" ? v > datos[par[0]] : v >= datos[par[0]];
+    }
+    return `<tr><td>${escapar(k.replaceAll("_", " "))}</td>
+      <td class="datos" style="${supera ? "color:var(--rojo);font-weight:700" : ""}">${valor(v)}</td>
+      <td class="datos" style="color:var(--tinta-suave)">${escapar(umbral)}</td></tr>`;
+  }).join("");
+}
+
+function bloque(detector, datos) {
+  // caídas tiene un nivel menos (no es por zona)
+  const porZona = detector === "caidas" ? { "toda la imagen": datos } : datos;
+  return Object.entries(porZona).map(([zona, d]) =>
+    `<h3 style="margin-top:12px">${NOMBRES[detector] || detector} <span class="etiqueta">${escapar(zona)}</span></h3>
+     <table><tr><th>Valor</th><th>Ahora</th><th>Umbral</th></tr>${filas(d)}</table>`).join("");
+}
+
+alTelemetria.push(t => {
+  const cont = document.getElementById("calibracion");
+  const camaras = Object.entries(t.calibracion);
+  if (!camaras.length) return;
+  cont.innerHTML = camaras.map(([cid, dets]) => {
+    const cam = t.camaras.find(c => c.id === cid);
+    const cuerpo = Object.keys(dets).length ? Object.entries(dets).map(([d, v]) => bloque(d, v)).join("")
+      : `<p class="vacio">Ningún detector produjo valores. ¿La cámara tiene las zonas que necesita? (puerta, acceso, piscina)</p>`;
+    return `<section class="tarjeta"><h2>${escapar(cam ? cam.nombre : cid)}</h2>${cuerpo}</section>`;
+  }).join("");
+  document.getElementById("tiempos").innerHTML = Object.entries(t.ms_detectores)
+    .map(([d, ms]) => `<div><b>${ms} ms</b><span>${NOMBRES[d] || d}</span></div>`).join("");
+});
+</script>
+{% endblock %}

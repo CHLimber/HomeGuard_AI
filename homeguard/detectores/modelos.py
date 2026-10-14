@@ -19,12 +19,23 @@ log = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", message=".*ByteTrack.*deprecated.*", category=FutureWarning)
 
 
+def _silenciar_opencv() -> None:
+    """OpenCV 5 avisa 'Targets are not supported by the new graph engine' al crear YuNet/SFace: es inofensivo."""
+    try:
+        import cv2
+
+        cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class Modelos:
     def __init__(self, hilos_torch: int = 4) -> None:
         self._lock = threading.Lock()
         self._cache: dict[str, Any] = {}
         self.hilos_torch = hilos_torch
         self._torch_configurado = False
+        _silenciar_opencv()
 
     def _configurar_torch(self) -> None:
         if not self._torch_configurado:

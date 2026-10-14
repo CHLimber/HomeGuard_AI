@@ -70,6 +70,7 @@ class Sistema:
         self._sincronizar_camaras_bd()
         if demo:
             self._sembrar_zonas_demo()
+        self.recargar_residentes()
 
     # -- configuración ------------------------------------------------------------
 
@@ -142,6 +143,22 @@ class Sistema:
             self._zonas_cache.clear()
         else:
             self._zonas_cache.pop(camara_id, None)
+
+    # -- residentes ---------------------------------------------------------------
+
+    def recargar_residentes(self) -> int:
+        """Pasa los embeddings de la BD al detector de rostros. Devuelve cuántos vectores hay."""
+        import numpy as np
+
+        with self.bd.sesion() as s:
+            filas = s.execute(select(m.EmbeddingRostro.vector, m.Residente.nombre)
+                              .join(m.Residente, m.Residente.id == m.EmbeddingRostro.residente_id)).all()
+        vectores = [np.frombuffer(v, dtype=np.float32) for v, _ in filas]
+        nombres = [n for _, n in filas]
+        detector = self.pipeline.analizador.detectores.get("rostros")
+        if detector is not None:
+            detector.fijar_residentes(np.array(vectores) if vectores else np.zeros((0, 128), np.float32), nombres)
+        return len(vectores)
 
     # -- ciclo de vida -----------------------------------------------------------
 
