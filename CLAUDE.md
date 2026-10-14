@@ -1,99 +1,97 @@
-# CLAUDE.md — HomeGuard AI
+# CLAUDE.md
 
-## Qué es
-Sistema de seguridad residencial 100 % software para una feria universitaria (UAGRM, Ing. en Sistemas).
-Una laptop con Python recibe video de 1–3 cámaras (webcam + celulares con IP Webcam/DroidCam vía HTTP/MJPEG) y
-detecta 5 anomalías: intrusión (rostro desconocido), piscina, fuego/humo, caída y puerta abierta fuera de horario.
-Al confirmar una alarma: WebSocket al panel `/alarma` (sirena Web Audio, parpadeo, vibración), foto por Telegram y
-registro en SQLite con latencias (requisito < 2 s). El preprocesamiento usa operaciones bitwise vectorizadas.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Instalar y correr
+## Proyecto
+HomeGuard AI: sistema de seguridad residencial 100 % software para una feria universitaria (UAGRM). Una laptop con
+Python recibe video de 1–3 cámaras (webcam + celulares con IP Webcam/DroidCam por HTTP/MJPEG) y detecta 5 anomalías:
+intrusión (rostro desconocido), piscina, fuego/humo, caída y puerta abierta fuera de horario. Al confirmar una alarma
+la envía por WebSocket al panel `/alarma` (sirena Web Audio), manda una foto por Telegram y la registra en SQLite con
+sus latencias (requisito: menos de 2 s). Requisito académico: el preprocesamiento usa operaciones de bits vectorizadas
+y tiene un benchmark (`docs/BITWISE.md`, `docs/BENCHMARK.md`).
+
+## Comandos
+En Windows, Python 3.12 en `.venv` (en Linux/macOS, `.venv/bin/python`):
 ```bash
-py -3.12 -m venv .venv                      # Linux/macOS: python3.12 -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt   # Linux/macOS: .venv/bin/python
-.venv/Scripts/python scripts/descargar_modelos.py
+.venv/Scripts/python -m pytest -q                                    # todos los tests (~20 s, sin cámaras ni internet)
+.venv/Scripts/python -m pytest tests/test_motor.py -q                # un archivo
+.venv/Scripts/python -m pytest tests/test_puerta.py -k horario -q    # un test por nombre
+.venv/Scripts/python run.py --demo [--sin-telegram] [--puerto 8001]  # videos sintéticos en bucle, BD data/homeguard_demo.db
+.venv/Scripts/python run.py                                          # cámaras reales de config.yaml
 .venv/Scripts/python scripts/verificar_entorno.py [--cargar-modelos] [--sin-camaras]
-.venv/Scripts/python run.py --demo          # videos sintéticos en bucle, BD data/homeguard_demo.db
-.venv/Scripts/python run.py [--sin-telegram] [--puerto 8001]
+.venv/Scripts/python scripts/descargar_modelos.py                    # pesos a models/ (gitignored)
+.venv/Scripts/python -m homeguard.preproceso.benchmark               # reescribe docs/BENCHMARK.md y docs/benchmark.csv
+.venv/Scripts/python scripts/evaluar_detector.py --detector fuego --carpeta data/videos_prueba/fuego [--bd ...]
+.venv/Scripts/python scripts/reporte_latencias.py [--demo]
 ```
-Dashboard: http://localhost:8000/en-vivo · Panel: http://IP:8000/alarma.
-En esta máquina de desarrollo (Windows 11): Python 3.12.10 en `.venv`, torch 2.14 CPU, ultralytics 8.4,
-opencv-python 5.0, supervision 0.30, numpy 2.5, fastapi 0.143.
+Dashboard: http://localhost:8000/en-vivo · Panel: http://IP:8000/alarma. No hay linter configurado.
+Al terminar un cambio, verificar con los tests y con `run.py --demo`: la puerta sintética dispara una alarma a los
+~6 s, y después una vez por cada cooldown de 60 s.
+
+## Arquitectura (lo que no se ve leyendo un solo archivo)
+
+**Flujo e hilos.** Un hilo por cámara (`captura/camaras.py`) guarda solo el último frame; los archivos se reproducen
+en bucle a su FPS real. Un único hilo de procesamiento (`pipeline.py`) recorre las cámaras, llama a
+`Analizador.analizar()`, pasa las observaciones a `MotorReglas.procesar()` y por cada `Disparo` llama a
+`Sistema.despachar()`. FastAPI/uvicorn corre en el hilo principal. El pipeline emite por WebSocket con
+`asyncio.run_coroutine_threadsafe` sobre el loop que captura el lifespan de `web/app.py` (`GestorWebSocket.fijar_loop`).
+Telegram tiene su propio hilo con `queue.Queue`.
+
+**Contrato de los detectores** (`detectores/base.py`): `procesar(frame, ctx) -> list[PosibleEvento]`.
+- Devuelven **una observación por zona evaluada, con `activo=True/False`**: el motor necesita las negativas para votar
+  N de M.
+- Usan **`ctx.t` y nunca `time.time()`**, así los tests y el evaluador corren más rápido que el tiempo real.
+- Escriben sus valores crudos en `ctx.calibracion` (los muestra la página Calibración).
+- **No deciden alarmas.** Solo el motor enciende bits del byte de estado (`reglas/estado.py`; el JS del panel lo
+  decodifica igual).
+- Reparto de reglas: las temporales propias de cada anomalía (2 s de puerta, inmovilidad, etc.) viven en el detector,
+  y esas anomalías usan 1 de 1 en el motor; las de "cuántos frames" (K consecutivos = N de N, 3 de 5) viven en el motor.
+
+**Modelos caros solo cuando hace falta.** `ctx.detecciones_generales()` corre el YOLO general + ByteTrack de forma
+perezosa, una vez por frame, y lo comparten piscina y rostros. YuNet/SFace corren solo si hay una persona en la zona
+"acceso". El YOLO de fuego corre solo si la capa 1 bitwise supera su umbral. La pose corre cada `cada_n_frames`.
+Los modelos se cargan de forma perezosa en `detectores/modelos.py`. YuNet y SFace no son thread-safe: una instancia
+por hilo, o una con nombre (el alta de residentes usa `instancia="registro"` con un lock).
+
+**Configuración en capas.** `config.yaml` (comentado y validado con pydantic `extra="forbid"` en `config.py`) +
+overrides del dashboard en la tabla `config` de la BD, como claves con puntos. `Sistema._aplicar_config()` los propaga
+en caliente al motor, Telegram y las cámaras. En `--demo`, las cámaras salen de `demo.camaras` (los overrides de
+cámara usan ese prefijo) y la BD es otra. Las descripciones de los umbrales en el dashboard salen de los comentarios
+del YAML (`leer_comentarios`). **Todo umbral nuevo va en `config.yaml` con un comentario y un campo en `config.py`.**
+
+**Orden de `despachar()`:** JPEG a disco → WebSocket → cola de Telegram → INSERT en la BD. La alerta llega primero
+al panel. Si el ack del panel llega antes que el INSERT, queda en `_acks_anticipados`. La latencia al panel es
+`ack − t_detección`, y por eso es una cota superior.
+
+**Código compartido con los scripts.** `analizador.py` y `db/consultas.py` (overrides, zonas, embeddings) los usan el
+sistema en vivo y `scripts/evaluar_detector.py`. Los evaluadores escriben en `docs/PRUEBAS.md` entre los marcadores
+`<!-- detector:INICIO/FIN -->`.
 
 ## Tests
-`.venv/Scripts/python -m pytest -q` → 73 tests, ~20 s. No necesitan cámaras ni internet. Los modelos se simulan con
-la verdad de terreno de los videos sintéticos (`scripts/generar_video_sintetico.py` escribe `.mp4` + `.json`).
-`pytest.ini` silencia el aviso de deprecación de `sv.ByteTrack`.
+- `tests/conftest.py` crea un `config.yaml` temporal sin cámaras, con BD y carpetas en `tmp_path`, y genera los videos
+  sintéticos una vez por sesión.
+- YOLO, pose y rostros se simulan: `Analizador.detector_general`, `DetectorFuego(inferir_capa2=...)`,
+  `DetectorCaidas(inferir_pose=...)`, `DetectorRostros(detectar=...)`. Los videos traen la verdad de terreno en un
+  `.json` (cajas, apertura de la puerta).
+- `pytest.ini` silencia el aviso de deprecación de `sv.ByteTrack`.
 
-## Estructura
-```
-run.py                      entrada: args, logs, genera videos demo si faltan, uvicorn
-config.yaml                 TODOS los umbrales, comentados (los comentarios se muestran en el dashboard)
-homeguard/
-  config.py                 pydantic (extra=forbid), overrides con claves de puntos, .env, leer_comentarios()
-  sistema.py                orquestador: componentes, config en caliente, despachar(), acks, silenciar
-  pipeline.py               hilo de procesamiento, JPEG del stream, telemetría (FPS/CPU/RAM/calibración)
-  analizador.py             preproceso + detectores de un frame (lo usan pipeline y evaluar_detector)
-  anotador.py               dibujo con supervision
-  logs.py                   logging + consola_utf8()
-  captura/camaras.py        Camara (hilo, último frame, reconexión) y GestorCamaras
-  preproceso/bitwise.py     AND/OR/XOR, cuantización, RGB332 + cv2.LUT
-  preproceso/benchmark.py   python -m homeguard.preproceso.benchmark → docs/BENCHMARK.md
-  detectores/base.py        Zona, PosibleEvento, Contexto, EstadoCamara, Detector
-  detectores/modelos.py     carga perezosa de YOLO/YuNet/SFace
-  detectores/{puerta,fuego,piscina,caidas,rostros}.py
-  reglas/estado.py          byte de estado (bit 0..4 = intrusion, piscina, fuego, caida, puerta)
-  reglas/motor.py           N de M por (tipo, cámara, zona), cooldown, estado enclavado, activos
-  salidas/{websocket,telegram,registro}.py
-  db/{modelos,sesion,consultas}.py   SQLite WAL; consultas compartidas con los scripts
-  web/app.py                páginas, /ws/alarma, /ws/estado, /stream/{cam}, /snapshot/{cam}.jpg
-  web/api.py                /api/... estado, silenciar, eventos(.csv), camaras, config, zonas, residentes, telegram
-  web/templates, web/static CSS propio (sin CDN, funciona offline), JS sin frameworks
-scripts/                    verificar_entorno, descargar_modelos, generar_video_sintetico, probar_camara,
-                            probar_telegram, evaluar_detector, reporte_latencias
-tests/                      pytest (conftest crea un config.yaml temporal sin cámaras y una BD temporal)
-docs/                       ARQUITECTURA, DECISIONES, BITWISE, BENCHMARK, PRUEBAS, PROGRESO, GUIA_GRUPO
-data/                       videos_prueba/<anomalía>/{positivos,negativos}, eventos/ (fotos), *.db (gitignored)
-models/                     pesos (gitignored; se bajan con descargar_modelos.py)
-```
+## Convenciones y trampas
+- Código, comentarios, logs y UI en español, con type hints.
+- Sin bucles Python píxel a píxel (salvo la variante A del benchmark).
+- Operaciones matriz-con-matriz con `cv2.bitwise_*`; con un escalar, NumPy (`cv2.bitwise_and(img, escalar)` falla
+  con imágenes chicas).
+- `supervision` está fijado `<0.31` porque ahí desaparece `sv.ByteTrack`.
+- OpenCV 5: los avisos "Targets are not supported" se silencian en `modelos.py`.
+- Los scripts llaman a `consola_utf8()`, porque Windows usa cp1252 al redirigir la salida y los caracteres como `≤`
+  o `→` rompen el `print`.
+- Frontend sin CDN (tiene que funcionar offline en la feria): CSS propio en `web/static`, JS sin frameworks.
+- Sin Docker, MQTT, nube ni hardware. Mantener las dependencias al mínimo. Las decisiones no cubiertas se anotan en
+  `docs/DECISIONES.md`.
+- Commits sin líneas de atribución a Claude.
 
-## Convenciones
-- Código, comentarios, logs y UI en español. Type hints. Identificadores en español salvo términos técnicos.
-- Sin bucles Python píxel a píxel (salvo la variante A del benchmark). Operaciones matriz-matriz con `cv2.bitwise_*`;
-  con un escalar, NumPy (`cv2.bitwise_and(img, escalar)` falla con imágenes chicas).
-- **Ningún umbral hardcodeado**: va en `config.yaml` con un comentario + campo en `homeguard/config.py`.
-- Los detectores: una `PosibleEvento` por zona evaluada (`activo` True/False), tiempo de `ctx.t` (nunca
-  `time.time()`), valores crudos en `ctx.calibracion`. Solo el motor de reglas decide alarmas.
-- Nuevas dependencias: evitarlas. Sin Docker, MQTT, nube ni hardware.
-- Decisiones no cubiertas por el pedido → la opción más simple para una demo en vivo, anotada en `docs/DECISIONES.md`.
-- Commits sin líneas de atribución a Claude. `.gitattributes` normaliza a LF.
+## Estado
+Las fases 0–6 están hechas (`docs/PROGRESO.md`). Lo pendiente lo hace el grupo a mano (`docs/GUIA_GRUPO.md`): `.env`
+de Telegram, URLs de los celulares, zonas, residentes, videos de prueba y calibración.
 
-## Dónde está cada umbral
-`config.yaml`:
-- `alarmas.<tipo>.{votos_n, votos_m, cooldown_s}`: motor de reglas (intrusión 5/5, piscina 3/5, fuego 3/5, caída 1/1, puerta 1/1)
-- `detectores.rostros.umbral_similitud` (0,363), `confianza_rostro`, `tamano_min_rostro_px`
-- `detectores.piscina.{tiempo_sin_supervisor_s, inmovil_desplazamiento_px, inmovil_tiempo_s}`
-- `detectores.fuego.{hue_min, hue_max, sat_min, val_min, umbral_capa1_pct, confianza_capa2}`
-- `detectores.caidas.{ratio_min 1.4, angulo_max_grados 45, ventana_descenso_s 1, descenso_min_relativo, inmovil_tiempo_s 5, cada_n_frames}`
-- `detectores.puerta.{metodo, umbral_diferencia, porcentaje_min 25, duracion_min_s 2, horarios_permitidos}`
-- `preproceso.{bits_movimiento, apertura_movimiento_px}`, `procesamiento.*` (FPS, imgsz), `telegram.*`, `panel.latencia_objetivo_ms`
-Los cambios hechos desde el dashboard están en la tabla `config` de la BD (prevalecen sobre el YAML).
-
-## Estado actual
-Fases 0–6 terminadas (detalle en `docs/PROGRESO.md`). Funciona de punta a punta en `--demo`: la puerta sintética
-dispara, el panel recibe la alerta con ack (latencia ~5–20 ms en localhost) y el evento queda con foto en la BD.
-Pendiente del grupo (`docs/GUIA_GRUPO.md`): `.env` de Telegram, URLs de los celulares, zonas, residentes, videos de
-prueba (→ `scripts/evaluar_detector.py` llena `docs/PRUEBAS.md`) y calibración.
-
-## Problemas conocidos
-- El YOLO fire-smoke no reconoce la llama sintética (elipses): en `--demo` el fuego solo activa la capa 1.
-- El rectángulo de `zona.mp4` no es una persona para YOLO: en `--demo` la piscina no dispara (sí en los tests).
-- La vibración y el wake lock pueden no funcionar en Android por `http://IP` (sin HTTPS); ver GUIA_GRUPO.
-- `sv.ByteTrack` se elimina en supervision 0.31 → fijado `<0.31`. Si algún día se actualiza, migrar a `trackers`.
-- La latencia al panel se mide con el ack (incluye la vuelta): es una cota superior.
-- Un solo hilo de procesamiento: con 3 cámaras y todos los detectores, ~9 FPS por cámara en la laptop de desarrollo
-  (16 hilos). En una laptop más lenta, bajar `imgsz_yolo`/`fps_objetivo`.
-
-## Cómo continuar
-Leer `docs/PROGRESO.md` (estado y pendientes) y `docs/DECISIONES.md`. Antes de cambiar algo: correr los tests;
-al terminar: tests + `run.py --demo` + actualizar PROGRESO.md y este archivo + `git commit`.
+Limitaciones conocidas en `--demo`: el YOLO de fuego no reconoce la llama sintética y YOLO no ve el rectángulo de
+`zona.mp4` como persona, así que fuego y piscina solo se ejercitan por completo en los tests.
