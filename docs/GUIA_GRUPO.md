@@ -1,0 +1,172 @@
+# Guía del grupo: lo que hay que hacer a mano
+
+El software está instalado, probado y documentado. Esta es la lista de lo que **no se puede hacer con código**:
+configurar los celulares, crear el bot de Telegram, grabar los videos de prueba y calibrar. Seguila en orden.
+Cada paso dice cómo comprobar que quedó bien.
+
+---
+
+## 0. Si van a usar otra laptop en la feria
+
+Instalación completa en [README.md](../README.md#instalación) (unos 10 minutos con buena conexión). Después:
+
+```bash
+python scripts/verificar_entorno.py --cargar-modelos
+```
+
+✅ Tiene que terminar con **0 errores**. Los avisos de `.env` y de los celulares se resuelven en los pasos 1 y 2.
+
+## 1. Bot de Telegram (≈ 5 min)
+
+1. En Telegram, abrí **@BotFather** → `/newbot` → elegí un nombre (ej. `HomeGuard Feria`) y un usuario terminado
+   en `bot` (ej. `homeguard_feria_uagrm_bot`). Te da un **token** del tipo `123456789:AA...`.
+2. En la carpeta del proyecto, copiá `.env.example` como `.env` y pegá el token: `TELEGRAM_TOKEN=123456789:AA...`
+3. Desde el celular del "dueño", abrí tu bot y mandale cualquier mensaje (ej. "hola").
+4. Ejecutá `python scripts/probar_telegram.py --obtener-chat-id` y copiá el número en `.env`:
+   `TELEGRAM_CHAT_ID=987654321`
+5. Ejecutá `python scripts/probar_telegram.py`.
+
+✅ Llegan al celular un mensaje y una foto de prueba. **El archivo `.env` no se sube a git** (ya está en
+`.gitignore`). No compartan el token.
+
+## 2. Celulares como cámaras (≈ 10 min por celular)
+
+1. Instalá **IP Webcam** (Android, recomendada) o **DroidCam** (Android/iPhone).
+2. Conectá el celular y la laptop **a la misma red Wi-Fi**. En la feria, lo más confiable es el **hotspot de un
+   celular que no sea cámara** (las redes de la universidad suelen aislar los dispositivos entre sí).
+3. IP Webcam: abajo de todo → **Iniciar servidor**. La app muestra la IP, por ejemplo `http://192.168.43.120:8080`.
+   La URL del video es **`http://192.168.43.120:8080/video`**.
+   DroidCam: la URL es `http://IP:4747/video` (DroidCam acepta **un solo cliente**: cerrá la app de escritorio).
+4. Probala: `python scripts/probar_camara.py http://192.168.43.120:8080/video`. Tienen que aparecer el video y los
+   FPS.
+5. Cargala en el sistema, de una de estas dos formas:
+   - en `config.yaml` → `camaras: celular1: fuente: ...` y `activa: true`, o
+   - con el sistema corriendo: Dashboard → **Configuración → Cámaras**: pegar la URL, marcar "activa" y **Aplicar**.
+6. En IP Webcam conviene bajar la resolución a **640x480 o 800x600** (Preferencias de video): menos latencia y menos
+   batería. Dejá los celulares **enchufados** y con el ahorro de energía y el bloqueo de pantalla desactivados.
+
+✅ En Dashboard → En vivo, cada cámara aparece como "conectada" con su video.
+
+> **Windows Firewall:** la primera vez que corre `run.py`, Windows pregunta si permite a Python en la red. Marcá
+> **Redes privadas** y aceptá. Si la red quedó como "pública", cambiala a privada en Configuración de Windows → Red.
+
+## 3. Panel de alarma en otro celular o tablet (≈ 3 min)
+
+1. Con `python run.py` corriendo, la consola muestra `Panel (celular): http://192.168.x.x:8000/alarma`. Abrí esa
+   dirección en **Chrome** en la tablet o el celular del panel.
+2. Subí el volumen **multimedia** al máximo y tocá **ARMAR ALARMA**. Se escucha un pitido corto. Tocá
+   **Probar sirena**.
+3. Desactivá el apagado automático de la pantalla (Ajustes → Pantalla → Tiempo de espera → el máximo, o "nunca").
+4. Hay que **volver a tocar ARMAR cada vez que se recarga la página**: los navegadores no dejan sonar audio sin que
+   alguien toque la pantalla.
+
+✅ Arriba a la derecha dice **Conectado**.
+
+> **Vibración y pantalla siempre encendida en Android:** la página se abre por `http://IP` (sin HTTPS), y algunos
+> navegadores bloquean `navigator.vibrate` o el *wake lock* en páginas que no son seguras. Si no vibra, no es un
+> error del sistema. Solución opcional para la demo: en Chrome de Android, abrí `chrome://flags`, buscá
+> **"Insecure origins treated as secure"**, agregá `http://IP-DE-LA-LAPTOP:8000`, activalo y reiniciá Chrome.
+
+## 4. Dibujar las zonas (≈ 10 min)
+
+Dashboard → **Zonas** → elegí la cámara → **Congelar imagen actual** → hacé clic en los vértices del polígono → tipo
+y nombre → **Guardar zona**.
+
+| Tipo | Dónde dibujarla | La necesita |
+|---|---|---|
+| `acceso` | donde se para alguien que entra (frente a la puerta, a la altura de la cara) | intrusión |
+| `piscina` | el agua (o lo que la represente en la maqueta) | piscina |
+| `borde_piscina` | donde se para el adulto que supervisa | piscina |
+| `puerta` | **solo la hoja de la puerta**, ajustado | puerta |
+| `fuego` (opcional) | dónde puede haber fuego (cocina). Sin esta zona se mira la imagen completa | fuego |
+
+En la zona `puerta`: con la puerta **cerrada** y sin nadie delante, tocá **Capturar referencia (puerta cerrada)**.
+Repetilo si cambia mucho la iluminación del lugar.
+
+Las zonas se dibujan sobre los pies de las personas (el sistema usa el punto inferior central de cada persona): la
+zona de la piscina tiene que incluir el piso o el agua donde estaría la persona, no solo su cabeza.
+
+✅ En Dashboard → En vivo se ven los polígonos de colores sobre el video.
+
+## 5. Registrar a los residentes (≈ 2 min por persona)
+
+Dashboard → **Residentes**: nombre y **3 a 5 fotos** de frente, con buena luz, una sola cara por foto (o que la
+persona sea la cara más grande). Sirven fotos sacadas con el celular en el momento. Registren a todos los
+integrantes del grupo que van a "vivir" en la casa de la demo.
+
+✅ Al pasar un residente por la zona de acceso, en **Calibración → Rostros** aparece su nombre con una similitud
+mayor a 0,363. Una persona no registrada aparece como desconocida.
+
+## 6. Grabar los videos de prueba y medir (≈ 2–3 h en total)
+
+Seguí el protocolo de [PRUEBAS.md](PRUEBAS.md#2-protocolo-para-los-videos-de-prueba): al menos 10 positivos y
+10 negativos por anomalía, grabados con la cámara y el encuadre de la feria. Con IP Webcam se puede grabar desde la
+app, o con la cámara normal del celular apuntando igual.
+
+Copialos en `data/videos_prueba/<anomalía>/positivos|negativos/` y ejecutá para cada detector:
+
+```bash
+python scripts/evaluar_detector.py --detector fuego --carpeta data/videos_prueba/fuego
+```
+
+Los resultados (VP, FP, VN, FN, precisión, recall) se escriben solos en `docs/PRUEBAS.md`. Después de una sesión de
+prueba en vivo con el panel abierto y Telegram configurado:
+
+```bash
+python scripts/reporte_latencias.py
+```
+
+**Seguridad:** el fuego, con una vela o un encendedor sobre una superficie no inflamable y con agua cerca, o con
+un video de fuego real reproducido en una pantalla frente a la cámara. Las caídas, sobre colchoneta.
+
+## 7. Calibrar (en la casa de prueba y otra vez en la feria) (≈ 30 min)
+
+Abrí Dashboard → **Calibración** al lado de la cámara y provocá cada situación. Los valores que superan su umbral
+se ven en **rojo**. Ajustá en **Configuración** (se aplica al instante):
+
+| Problema | Qué mirar en Calibración | Qué ajustar |
+|---|---|---|
+| La puerta suena con gente pasando delante | `porcentaje cambiado` con la puerta cerrada | subir `detectores.puerta.porcentaje_min` o achicar la zona |
+| La puerta no suena al abrirla | `porcentaje cambiado` con la puerta abierta | bajar `porcentaje_min` o `umbral_diferencia`; recapturar la referencia |
+| Un residente sale "desconocido" | `rostros → similitud` | registrar más fotos con la luz de la feria; bajar un poco `umbral_similitud` (no menos de ~0,30) |
+| Fuego: la capa 2 nunca corre | `capa1 pct color y movimiento` | bajar `umbral_capa1_pct` o ampliar `hue_max` / bajar `sat_min` |
+| Fuego: falsas alarmas con luces | `capa2 confianza` | subir `confianza_capa2` o `alarmas.fuego.votos_n` |
+| Caídas no detectadas | `ratio`, `angulo torso`, `descenso relativo` | bajar `ratio_min` o `descenso_min_relativo`; cámara más alta y lateral |
+| Piscina suena con un adulto presente | `supervisores en borde` = 0 | ampliar la zona `borde_piscina` (tiene que contener los pies del adulto) |
+| Va lento (FPS bajos) | En vivo → FPS, ms/frame | bajar `procesamiento.imgsz_yolo` (ej. 416 o 320) o `fps_objetivo`; subir `caidas.cada_n_frames` |
+
+Para la demo, quizás quieran **bajar los tiempos** para que el público no espere tanto: por ejemplo
+`detectores.piscina.inmovil_tiempo_s` de 10 a 5, o `detectores.caidas.inmovil_tiempo_s` de 5 a 3. Anótenlo en la
+defensa.
+
+Si se rompe algo de la configuración: **Configuración → Restaurar config.yaml**.
+
+## 8. Benchmark bitwise en la laptop de la feria (≈ 1 min)
+
+```bash
+python -m homeguard.preproceso.benchmark
+```
+
+Actualiza `docs/BENCHMARK.md` con los tiempos de esa laptop. Úsenlo en la defensa junto con
+[BITWISE.md](BITWISE.md).
+
+## 9. Checklist del día de la feria
+
+- [ ] Laptop enchufada; en Windows: plan de energía "Alto rendimiento" y suspensión desactivada.
+- [ ] Hotspot encendido; laptop, celulares cámara y tablet del panel conectados a él.
+- [ ] Celulares cámara enchufados, IP Webcam iniciado, pantalla sin bloqueo.
+- [ ] `python scripts/verificar_entorno.py` → 0 errores y cámaras "entregan frames".
+- [ ] `python run.py` (o `python run.py --sin-telegram` si no hay internet: el panel funciona igual).
+- [ ] Panel abierto en la tablet → **ARMAR ALARMA** → Probar sirena.
+- [ ] Recapturar la referencia de la puerta con la luz del lugar.
+- [ ] Pasada rápida por Calibración: cada anomalía dispara una vez.
+- [ ] Historial limpio para la demo: si quieren empezar de cero, cerrar el programa y borrar `data/homeguard.db` y
+      `data/eventos/*.jpg`. **Ojo: esto borra también residentes y zonas**; para conservarlos, solo filtrá el
+      historial por fecha.
+- [ ] Plan B sin cámaras: `python run.py --demo` (la puerta sintética dispara la alarma cada vuelta pasado el
+      cooldown de 60 s).
+
+## Lo que NO hace falta hacer
+
+- Entrenar modelos: todos son preentrenados y ya están en `models/`.
+- Comprar hardware, contratar servicios o configurar la nube: todo corre en la laptop.

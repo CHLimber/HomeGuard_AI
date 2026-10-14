@@ -8,7 +8,7 @@
 | 3 — Detectores (fuego, piscina, caídas, rostros) | ✅ hecha |
 | 4 — Dashboard | ✅ hecha |
 | 5 — Robustez | ✅ hecha |
-| 6 — Documentación final | ⏳ pendiente |
+| 6 — Documentación final | ✅ hecha |
 
 ## Fase 0
 - Python 3.12.10 en `.venv` (no había 3.11 instalado; 3.12 está soportado por ultralytics/torch).
@@ -68,9 +68,26 @@
 - Consultas de BD compartidas en `homeguard/db/consultas.py`.
 - 73 tests OK.
 
+## Fase 6
+- README (instalación Windows y Linux/macOS, uso, scripts, problemas frecuentes), ARQUITECTURA (Mermaid: componentes,
+  secuencia de una alarma, modelo de datos), DECISIONES (38 decisiones con su porqué), PRUEBAS (protocolo +
+  secciones que llenan los scripts, sin resultados inventados), GUIA_GRUPO (pasos manuales), CLAUDE.md completo.
+
+## Pendiente (lo hace el grupo, ver GUIA_GRUPO.md)
+- `.env` con TELEGRAM_TOKEN y TELEGRAM_CHAT_ID → `scripts/probar_telegram.py`.
+- URLs de los celulares (IP Webcam/DroidCam) y activarlos en config.yaml o en el dashboard.
+- Dibujar zonas por cámara y capturar la referencia de la puerta cerrada.
+- Registrar residentes (3–5 fotos c/u).
+- Grabar videos positivos/negativos por anomalía → `scripts/evaluar_detector.py` → docs/PRUEBAS.md.
+- Sesión con panel + Telegram → `scripts/reporte_latencias.py`.
+- Calibrar umbrales con la página Calibración, en la casa y en la feria.
+- Re-ejecutar el benchmark en la laptop de la feria.
+
 ## Problemas conocidos
 - El video sintético de fuego (elipses naranjas) activa la capa 1 pero el YOLO fire-smoke no lo reconoce como
   fuego (esperable): para ver una alarma de fuego real hace falta un video de una llama real.
 - El rectángulo del video sintético "zona" no es una persona para YOLO: en `--demo` la piscina no dispara;
   sus reglas se prueban en los tests con detecciones simuladas.
+- Vibración y wake lock pueden no funcionar en Android por `http://IP` sin HTTPS (workaround en GUIA_GRUPO).
+- La latencia al panel se mide con el ack: incluye el viaje de vuelta (cota superior).
 - `sv.ByteTrack` está deprecado en supervision 0.28+ y se elimina en 0.31 → `requirements.txt` fija `<0.31`.

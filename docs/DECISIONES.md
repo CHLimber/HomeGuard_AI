@@ -1,0 +1,118 @@
+# Decisiones técnicas
+
+Cada decisión que no venía fijada en el pedido, con su porqué. Criterio general: **la opción más simple que
+funcione en una demo en vivo**.
+
+## Entorno y dependencias
+
+1. **Python 3.12 en lugar de 3.11.** En la laptop de desarrollo no había 3.11 y sí 3.12, que ultralytics y torch
+   soportan. No se usa mediapipe, que era la dependencia más delicada con las versiones. El código funciona en
+   3.11 y en 3.12.
+2. **`supervision>=0.25,<0.31`.** `sv.ByteTrack` (pedido explícitamente) está deprecado desde la 0.28 y se elimina en
+   la 0.31. Se fija la versión y se silencia el aviso.
+3. **OpenCV 5.0.** Es lo que instaló `opencv-python>=4.10`. `FaceDetectorYN` y `FaceRecognizerSF` funcionan igual.
+   Su nuevo motor DNN imprime "Targets are not supported by the new graph engine", que es inofensivo, así que se
+   baja el nivel de log de OpenCV a ERROR.
+4. **torch CPU.** En Windows, pip instala la versión CPU por defecto. No se fuerza CUDA.
+5. **psutil** para CPU y RAM del dashboard: ya es dependencia de ultralytics, así que no agrega nada.
+6. **Nombre local del modelo de fuego:** `best.pt` de `rabahdev/fire-smoke-yolov8n` se guarda como
+   `models/fire_smoke_yolov8n.pt`, para que no se confunda con otros `best.pt`. Los nombres de los demás archivos
+   se verificaron en Hugging Face y coinciden con los pedidos.
+
+## Configuración
+
+7. **Configuración en capas: `config.yaml` + overrides en la BD.** `config.yaml` queda comentado como referencia
+   única de umbrales. El dashboard guarda sus cambios en la tabla `config` como claves con puntos
+   (`detectores.puerta.porcentaje_min = 30`) y se aplican encima del YAML sin perder sus comentarios. "Restaurar
+   config.yaml" borra la tabla. Si un override deja la configuración inválida, se ignora con un error en el log y
+   el sistema arranca igual.
+8. **Validación estricta con pydantic (`extra="forbid"`).** Una clave mal escrita en `config.yaml` hace fallar el
+   arranque con un mensaje claro, en lugar de ignorarse en silencio.
+9. **Las descripciones de los umbrales en el dashboard salen de los comentarios de `config.yaml`**
+   (`leer_comentarios`). Así no hay que mantener la documentación en dos lugares.
+10. **Las cámaras son un diccionario (`camaras: {laptop: {...}}`)**, no una lista, para que los overrides
+    (`camaras.laptop.fuente`) funcionen. La tabla `camara` de la BD es un espejo de la config.
+11. **El modo demo usa otra base de datos** (`data/homeguard_demo.db`) y las cámaras de `demo.camaras`, para no
+    mezclar eventos de prueba con el historial real.
+12. **Puerta: `horarios_permitidos: []` por defecto (vigilar siempre).** Si no, en una feria de día la puerta nunca
+    dispararía. El grupo puede poner por ejemplo `["07:00-22:00"]`.
+
+## Detectores y motor de reglas
+
+13. **Los detectores emiten observaciones positivas y negativas** (`PosibleEvento.activo`). La votación N de M
+    necesita saber cuántos frames se evaluaron, no solo los positivos.
+14. **"K frames consecutivos" (intrusión) y "3 de 5" (fuego) los resuelve el mismo motor**: K consecutivos es N = M = K.
+15. **Las reglas temporales propias de cada anomalía (2 s de puerta abierta, 5 s de inmovilidad, N s de piscina)
+    viven en el detector**, y el motor usa 1 de 1 para esas anomalías. Las reglas de "cuántos frames" viven en el
+    motor. Así cada regla está en un solo lugar.
+16. **Tiempo inyectado (`ctx.t`).** Los detectores nunca llaman a `time.time()`, lo que permite testear con videos
+    a máxima velocidad y evaluar videos más rápido que el tiempo real.
+17. **Cooldown por (tipo, cámara, zona)** y no solo por (tipo, zona): dos cámaras pueden tener zonas con el mismo
+    nombre.
+18. **El estado queda enclavado hasta "SILENCIAR".** Una alarma de seguridad no se apaga sola. `motor.auto_limpiar_s`
+    permite cambiarlo. Silenciar no reinicia el cooldown, así no vuelve a sonar al instante.
+19. **Puerta:** si no se capturó una referencia desde el dashboard, se usa el primer frame
+    (`referencia_automatica`). El desenfoque previo usa `k | 1` para asegurar un kernel impar.
+20. **Fuego:** sin zonas de tipo "fuego" se analiza la imagen completa. La capa 2 corre una sola vez por frame sobre
+    la imagen completa, y sus detecciones se asocian a la zona cuyo recuadro contiene su centro.
+21. **Piscina:** el "supervisor" tiene que ser una persona (las mascotas no supervisan). La regla (a) exige
+    `tiempo_sin_supervisor_s` (2 s) para no disparar si alguien cruza la piscina un instante; esto se agregó porque
+    el pedido no fija ese tiempo. La pertenencia a la zona usa el punto inferior central del bbox (los pies), que es
+    lo habitual con `PolygonZone`.
+22. **Caídas:** la persona caída se asocia con la que estaba de pie **por cercanía, no por `tracker_id`**. Cuando el
+    cuerpo pasa de vertical a horizontal el bbox cambia tanto que los trackers suelen perder la identidad justo en la
+    caída. Si los keypoints del torso no son confiables, no se considera "acostado" (criterio conservador). Si una
+    persona de pie aparece pegada a la caída (alguien que ayuda), el seguimiento de esa caída se descarta.
+23. **Rostros:** YuNet corre sobre el recorte de la zona "acceso" a **resolución original** (mejor a distancia) y solo
+    si YOLO ve una persona dentro de la zona. Un rostro cuya caja cae dentro del recorte pero fuera del polígono se
+    ignora. Si no hay residentes registrados, cualquier rostro es desconocido.
+24. **Alta de residentes:** de cada foto se toma el rostro más grande. Las fotos se procesan en memoria y se
+    descartan: solo se guardan los vectores (privacidad). YuNet y SFace no son thread-safe, así que el alta usa su
+    propia instancia con un lock.
+
+## Bitwise
+
+25. **Índice de color RGB332 (8 bits) + `cv2.LUT`** en lugar de un índice de 9 bits indexado con NumPy. La primera
+    versión (3 bits por canal → 512 colores, uint16) era la parte más lenta del preprocesamiento (~2,4 ms). Con
+    8 bits se puede usar la LUT nativa de OpenCV.
+26. **Cuantización con una AND (`x & 0xF0`) en lugar de `(x >> 4) << 4`.** Son equivalentes (lo verifica un test para
+    todos los valores de `bits`), y la AND es una sola operación. La versión con desplazamientos queda como función
+    didáctica.
+27. **Operaciones matriz-con-matriz con `cv2.bitwise_*`** (SIMD, ~10 veces más rápido que NumPy en este equipo) y
+    **operaciones con escalar con NumPy**, porque `cv2.bitwise_and(img, escalar)` falla con imágenes muy chicas
+    (OpenCV interpreta el escalar como una matriz 4x1).
+28. **El benchmark compara 5 variantes y se publica tal cual dio.** El HSV nativo de OpenCV resultó un poco más rápido
+    que la LUT RGB332 a igual área. Se documenta y se explica en BITWISE.md en lugar de esconderlo. El aporte
+    medible está en vectorizar (~200x) y en el ROI con AND (~3x).
+
+## Salidas, web y latencia
+
+29. **Orden de `despachar()`: foto a disco → WebSocket → cola de Telegram → BD.** La alerta llega al panel lo antes
+    posible. Si el ack llega antes de que la fila exista en la BD, se guarda en memoria y se aplica después.
+30. **La latencia al panel se mide con el ack** (detección → ack recibido por el servidor). Incluye el viaje de
+    vuelta, así que es una **cota superior** de la latencia real, y evita depender de que los relojes del celular y
+    de la laptop estén sincronizados.
+31. **Telegram con `requests` en un hilo y `queue.Queue`**, no con asyncio: es más simple, y un envío lento o sin
+    internet nunca toca el loop del servidor web. Los errores 400/401/403/404 se consideran permanentes y no se
+    reintentan; el 429 respeta `retry_after`.
+32. **Sin Tailwind ni CDN: CSS propio.** En una feria puede no haber internet, y el panel tiene que funcionar igual.
+    La tipografía es Bahnschrift, que viene con Windows (estilo DIN, de señalética), con alternativas condensadas
+    en Android.
+33. **El panel recibe el estado cada 0,5 s** (además de las alertas). Eso sirve de latido: si pasan 6 s sin
+    mensajes, el panel reconecta solo. También corrige un mensaje perdido.
+34. **El stream MJPEG lo produce el pipeline** (frame ya anotado, un JPEG por frame analizado). Si el último frame
+    tiene más de 3 s, se muestra "sin señal" en lugar de una imagen congelada.
+35. **Un solo hilo de procesamiento para todas las cámaras.** Es simple y suficiente: con 3 cámaras a 10 FPS
+    objetivo se midieron ~9 FPS por cámara en la laptop de desarrollo. Si hiciera falta más, el siguiente paso sería
+    un hilo por cámara con su propia instancia de los modelos.
+36. **SQLite en modo WAL con `busy_timeout`**, porque escriben tres hilos (procesamiento, Telegram y web).
+
+## Pruebas
+
+37. **Videos sintéticos + verdad de terreno (`.json`).** El rectángulo del video "zona" no es una persona para YOLO,
+    así que en los tests se reemplaza el YOLO por las cajas reales del JSON. Se prueban las zonas, ByteTrack, las
+    reglas y el motor sin depender del modelo. La pose y los rostros se prueban con secuencias simuladas. Los
+    modelos reales se verificaron aparte sobre una foto de ejemplo (ver PROGRESO.md).
+38. **El evaluador (`evaluar_detector.py`) analiza los videos al ritmo de `fps_objetivo`** (salteando frames), porque
+    las reglas cuentan frames analizados. Usa una hora fija de madrugada e ignora el horario permitido de la puerta:
+    mide la detección, no el horario.
