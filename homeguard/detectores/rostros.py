@@ -47,13 +47,14 @@ def comparar(embedding: np.ndarray, residentes: np.ndarray, nombres: list[str]) 
     return float(similitudes[i]), nombres[i]
 
 
-def extraer_rostros(imagen: np.ndarray, modelos: Modelos, cfg_rostros, tamano_min: int = 0) -> list[Rostro]:
+def extraer_rostros(imagen: np.ndarray, modelos: Modelos, cfg_rostros, tamano_min: int = 0,
+                    instancia: str | None = None) -> list[Rostro]:
     """Detecta rostros con YuNet y calcula su embedding con SFace."""
     alto, ancho = imagen.shape[:2]
     if alto < 10 or ancho < 10:
         return []
-    detector = modelos.yunet(cfg_rostros.modelo_detector, cfg_rostros.confianza_rostro, cfg_rostros.nms)
-    reconocedor = modelos.sface(cfg_rostros.modelo_reconocedor)
+    detector = modelos.yunet(cfg_rostros.modelo_detector, cfg_rostros.confianza_rostro, cfg_rostros.nms, instancia)
+    reconocedor = modelos.sface(cfg_rostros.modelo_reconocedor, instancia)
     detector.setInputSize((ancho, alto))
     _, caras = detector.detect(imagen)
     rostros: list[Rostro] = []

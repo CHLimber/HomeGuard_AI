@@ -35,7 +35,10 @@ document.getElementById("banner-silenciar").addEventListener("click", () => wsDa
 async function api(ruta, opciones = {}) {
   const r = await fetch(ruta, opciones);
   const datos = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
-  if (!r.ok) throw new Error(datos.detail || datos || r.statusText);
+  if (!r.ok) {
+    const d = datos && datos.detail !== undefined ? datos.detail : datos;
+    throw new Error(typeof d === "object" ? JSON.stringify(d) : (d || r.statusText));
+  }
   return datos;
 }
 

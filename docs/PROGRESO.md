@@ -6,7 +6,7 @@
 | 1 — Esqueleto de punta a punta | ✅ hecha |
 | 2 — Bitwise + benchmark | ✅ hecha |
 | 3 — Detectores (fuego, piscina, caídas, rostros) | ✅ hecha |
-| 4 — Dashboard | ⏳ pendiente |
+| 4 — Dashboard | ✅ hecha |
 | 5 — Robustez | ⏳ pendiente |
 | 6 — Documentación final | ⏳ pendiente |
 
@@ -44,6 +44,16 @@
   11 rostros; mismo rostro espejado/con otro brillo → similitud 0,954; rostros distintos → 0,07–0,20.
 - Demo: 3 cámaras a 9,2 FPS cada una; YOLO ≈ 35 ms/frame en esta CPU.
 - 56 tests OK (detectores con modelos simulados a partir de la verdad de terreno de los videos sintéticos).
+
+## Fase 4
+- Páginas: En vivo (MJPEG anotado + semáforo + CPU/RAM/FPS), Calibración, Zonas (editor de polígonos sobre un
+  frame congelado + captura de referencia de puerta), Residentes (alta con 3-5 fotos → solo embeddings), Configuración
+  (cámaras, probar Telegram, umbrales generados desde config.yaml con sus comentarios como ayuda), Historial
+  (filtros, miniaturas, latencias en verde/rojo vs 2 s, exportación CSV).
+- Cambios de configuración desde el dashboard: se guardan como overrides en la tabla `config` y se aplican en caliente
+  (motor de reglas, cámaras, detectores). "Restaurar config.yaml" los borra.
+- Verificado: alta real de residente con YuNet+SFace vía API; capturas de todas las páginas con Edge headless.
+- 62 tests OK.
 
 ## Problemas conocidos
 - El video sintético de fuego (elipses naranjas) activa la capa 1 pero el YOLO fire-smoke no lo reconoce como

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block titulo %}Configuración{% endblock %}
+{% block contenido %}
+<div class="cabecera">
+  <h1>Configuración</h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button id="btn-guardar">Guardar cambios</button>
+    <button id="btn-restaurar" class="secundario">Restaurar config.yaml</button>
+  </div>
+</div>
+<div id="mensaje"></div>
+
+<div class="rejilla">
+  <section class="tarjeta">
+    <h2>Cámaras</h2>
+    <p style="margin-top:0;font-size:.9rem">Fuente: <span class="datos">0</span> = webcam de la laptop ·
+      IP Webcam: <span class="datos">http://IP:8080/video</span> · DroidCam: <span class="datos">http://IP:4747/video</span></p>
+    <div id="camaras"></div>
+  </section>
+  <section class="tarjeta">
+    <h2>Telegram</h2>
+    <p style="margin-top:0">El token y el chat se configuran en el archivo <span class="datos">.env</span> de la laptop (no se muestran acá).</p>
+    <button id="btn-telegram">Probar Telegram</button>
+    <div id="msg-telegram"></div>
+  </section>
+</div>
+
+<p style="margin:20px 0 8px">Los valores que cambies acá se guardan en la base de datos y se aplican al instante,
+  encima de <span class="datos">config.yaml</span>. Los marcados con ● ya fueron cambiados desde el dashboard.</p>
+<div id="secciones"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const TITULOS = { alarmas: "Motor de reglas: votos y cooldown", motor: "Motor", detectores: "Detectores",
+  yolo_general: "YOLO general (personas y mascotas)", preproceso: "Preprocesamiento bitwise", procesamiento: "Procesamiento",
+  captura: "Captura de cámaras", telegram: "Telegram", panel: "Panel" };
+let original = {};
+
+function control(clave, valor) {
+  const id = "c-" + clave.replaceAll(".", "-");
+  if (typeof valor === "boolean")
+    return `<input type="checkbox" id="${id}" data-clave="${clave}" data-tipo="bool" ${valor ? "checked" : ""}>`;
+  if (typeof valor === "number")
+    return `<input type="number" step="any" id="${id}" data-clave="${clave}" data-tipo="num" value="${valor}" style="width:110px">`;
+  if (Array.isArray(valor))
+    return `<input id="${id}" data-clave="${clave}" data-tipo="lista" value="${escapar(valor.join(", "))}" style="width:220px" placeholder="vacío">`;
+  return `<input id="${id}" data-clave="${clave}" data-tipo="txt" value="${escapar(valor)}" style="width:260px">`;
+}
+
+async function cargar() {
+  const cfg = await api("/api/config");
+  original = cfg.valores;
+  // agrupar por los dos primeros niveles (ej. detectores.puerta)
+  const grupos = {};
+  for (const [clave, valor] of Object.entries(cfg.valores)) {
+    const partes = clave.split(".");
+    const grupo = partes[0] === "detectores" || partes[0] === "alarmas" ? partes.slice(0, 2).join(".") : partes[0];
+    (grupos[grupo] ||= []).push([clave, valor]);
+  }
+  document.getElementById("secciones").innerHTML = `<div class="rejilla">` + Object.entries(grupos).map(([grupo, campos]) => {
+    const [sec, sub] = grupo.split(".");
+    const titulo = sub ? `${TITULOS[sec]} · ${sub}` : TITULOS[sec] || sec;
+    const desc = cfg.descripciones[grupo] ? `<p style="margin:0 0 8px;font-size:.85rem;color:var(--tinta-suave)">${escapar(cfg.descripciones[grupo])}</p>` : "";
+    return `<section class="tarjeta"><h3>${escapar(titulo)}</h3>${desc}<table>${campos.map(([clave, valor]) => `
+      <tr><td style="width:40%"><label for="c-${clave.replaceAll(".", "-")}" style="margin:0;color:var(--tinta)">
+        ${clave in cfg.overrides ? "● " : ""}${escapar(clave.split(".").pop().replaceAll("_", " "))}</label>
+        <div style="font-size:.78rem;color:var(--tinta-suave)">${escapar(cfg.descripciones[clave] || "")}</div></td>
+      <td>${control(clave, valor)}</td></tr>`).join("")}</table></section>`;
+  }).join("") + `</div>`;
+}
+
+function leerCambios() {
+  const cambios = {};
+  document.querySelectorAll("#secciones [data-clave]").forEach(el => {
+    const clave = el.dataset.clave;
+    let v;
+    if (el.dataset.tipo === "bool") v = el.checked;
+    else if (el.dataset.tipo === "num") v = el.value === "" ? null : Number(el.value);
+    else if (el.dataset.tipo === "lista") {
+      const items = el.value.split(",").map(x => x.trim()).filter(Boolean);
+      const numerica = original[clave].length ? typeof original[clave][0] === "number" : clave.endsWith("clases") || clave.endsWith("capa2");
+      v = numerica ? items.map(Number) : items;
+    } else v = el.value;
+    if (JSON.stringify(v) !== JSON.stringify(original[clave])) cambios[clave] = v;
+  });
+  return cambios;
+}
+
+function mensaje(texto, ok = true) {
+  document.getElementById("mensaje").innerHTML = `<div class="mensaje ${ok ? "ok" : "error"}">${escapar(texto)}</div>`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function cargarCamaras() {
+  const { camaras } = await api("/api/camaras");
+  document.getElementById("camaras").innerHTML = camaras.map(c => `
+    <div style="padding:8px 0;border-bottom:1px solid var(--esmalte-2)">
+      <b>${escapar(c.nombre)}</b> <span class="etiqueta ${c.conectada ? "ok" : c.activa ? "mal" : ""}">
+        ${c.conectada ? "conectada" : c.activa ? "sin señal" : "inactiva"}</span>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center">
+        <input id="fuente-${c.id}" value="${escapar(c.fuente)}" style="flex:1;min-width:200px" aria-label="Fuente de ${escapar(c.nombre)}">
+        <label style="margin:0"><input type="checkbox" id="activa-${c.id}" ${c.activa ? "checked" : ""}> activa</label>
+        <button onclick="guardarCamara('${c.id}')">Aplicar</button>
+      </div>
+      ${c.error ? `<div style="font-size:.8rem;color:var(--rojo)">${escapar(c.error)}</div>` : ""}
+    </div>`).join("");
+}
+
+async function guardarCamara(id) {
+  try {
+    await api(`/api/camaras/${id}`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fuente: document.getElementById("fuente-" + id).value,
+                             activa: document.getElementById("activa-" + id).checked }) });
+    mensaje("Cámara actualizada; se está reconectando.");
+    setTimeout(cargarCamaras, 2500);
+  } catch (e) { mensaje(e.message, false); }
+}
+
+document.getElementById("btn-guardar").onclick = async () => {
+  const cambios = leerCambios();
+  if (!Object.keys(cambios).length) return mensaje("No hay cambios para guardar.");
+  try {
+    await api("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cambios }) });
+    mensaje(`Guardado: ${Object.keys(cambios).join(", ")}`);
+    cargar();
+  } catch (e) { mensaje(e.message, false); }
+};
+document.getElementById("btn-restaurar").onclick = async () => {
+  if (!confirm("¿Descartar todos los cambios hechos desde el dashboard y volver a los valores de config.yaml?")) return;
+  await api("/api/config/restaurar", { method: "POST" });
+  mensaje("Se restauraron los valores de config.yaml.");
+  cargar(); cargarCamaras();
+};
+document.getElementById("btn-telegram").onclick = async () => {
+  const r = await api("/api/telegram/probar", { method: "POST" });
+  document.getElementById("msg-telegram").innerHTML = `<div class="mensaje ${r.ok ? "ok" : "error"}">${escapar(r.mensaje)}</div>`;
+};
+cargar();
+cargarCamaras();
+</script>
+{% endblock %}

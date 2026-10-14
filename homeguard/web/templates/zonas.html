@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block titulo %}Zonas{% endblock %}
+{% block contenido %}
+<div class="cabecera">
+  <h1>Zonas</h1>
+  <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+    <div><label for="camara">Cámara</label>
+      <select id="camara">{% for cid, cam in camaras.items() %}<option value="{{ cid }}">{{ cam.nombre }}{% if not cam.activa %} (inactiva){% endif %}</option>{% endfor %}</select></div>
+    <button id="btn-congelar" class="secundario">Congelar imagen actual</button>
+  </div>
+</div>
+<div class="rejilla dividida">
+  <section class="tarjeta">
+    <canvas id="lienzo" width="640" height="480" style="width:100%;background:#222;border-radius:3px;cursor:crosshair;touch-action:none"
+            aria-label="Imagen de la cámara: hacé clic para agregar vértices del polígono"></canvas>
+    <p style="margin:8px 0 0;font-size:.9rem">Hacé clic sobre la imagen para marcar los vértices (mínimo 3). Las zonas guardadas se ven con su color.</p>
+  </section>
+  <section class="tarjeta">
+    <h2>Nueva zona</h2>
+    <label for="tipo">Tipo</label>
+    <select id="tipo" style="width:100%;margin-bottom:10px">
+      <option value="acceso">acceso — reconoce rostros (intrusión)</option>
+      <option value="piscina">piscina — personas/mascotas en el agua</option>
+      <option value="borde_piscina">borde_piscina — donde está el adulto que supervisa</option>
+      <option value="puerta">puerta — compara con la puerta cerrada</option>
+      <option value="fuego">fuego — limita dónde se busca fuego</option>
+    </select>
+    <label for="nombre">Nombre</label>
+    <input id="nombre" placeholder="Ej. Puerta principal" style="width:100%;margin-bottom:10px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="btn-guardar" disabled>Guardar zona</button>
+      <button id="btn-deshacer" class="secundario">Deshacer punto</button>
+      <button id="btn-limpiar" class="secundario">Limpiar</button>
+    </div>
+    <div id="mensaje"></div>
+    <h2 style="margin-top:18px">Zonas de esta cámara</h2>
+    <div id="lista"></div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const COLORES = { acceso: "#3b82f6", piscina: "#06b6d4", borde_piscina: "#22c55e", puerta: "#eab308", fuego: "#f97316" };
+const lienzo = document.getElementById("lienzo"), g = lienzo.getContext("2d");
+const imagen = new Image();
+let puntos = [], zonas = [];
+const camara = () => document.getElementById("camara").value;
+
+function dibujar() {
+  g.clearRect(0, 0, lienzo.width, lienzo.height);
+  if (imagen.complete && imagen.naturalWidth) g.drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+  const poligono = (pts, color, relleno) => {
+    if (!pts.length) return;
+    g.beginPath();
+    pts.forEach(([x, y], i) => (i ? g.lineTo : g.moveTo).call(g, x * lienzo.width, y * lienzo.height));
+    if (relleno) { g.closePath(); g.fillStyle = color + "33"; g.fill(); }
+    g.strokeStyle = color; g.lineWidth = 2; g.stroke();
+  };
+  zonas.forEach(z => {
+    poligono(z.puntos, COLORES[z.tipo] || "#fff", true);
+    g.fillStyle = COLORES[z.tipo] || "#fff"; g.font = "bold 14px Bahnschrift, sans-serif";
+    g.fillText(`${z.nombre} [${z.tipo}]`, z.puntos[0][0] * lienzo.width + 4, z.puntos[0][1] * lienzo.height - 6);
+  });
+  const color = COLORES[document.getElementById("tipo").value];
+  poligono(puntos, color, puntos.length > 2);
+  puntos.forEach(([x, y]) => { g.fillStyle = color; g.fillRect(x * lienzo.width - 4, y * lienzo.height - 4, 8, 8); });
+  document.getElementById("btn-guardar").disabled = puntos.length < 3;
+}
+
+function congelar() {
+  imagen.onload = () => { lienzo.width = imagen.naturalWidth; lienzo.height = imagen.naturalHeight; dibujar(); };
+  imagen.src = `/snapshot/${camara()}.jpg?t=${Date.now()}`;
+}
+
+async function cargarZonas() {
+  zonas = (await api(`/api/zonas?camara=${camara()}`)).zonas;
+  document.getElementById("lista").innerHTML = zonas.length ? zonas.map(z => `
+    <div style="border-left:4px solid ${COLORES[z.tipo]};padding:6px 10px;margin-bottom:8px;background:#fff;border-radius:3px">
+      <b>${escapar(z.nombre)}</b> <span class="etiqueta">${z.tipo}</span>
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+        ${z.tipo === "puerta" ? `<button onclick="referencia(${z.id})">Capturar referencia (puerta cerrada)</button>` : ""}
+        <button class="secundario" onclick="borrar(${z.id})">Borrar</button>
+      </div>
+      ${z.tipo === "puerta" ? (z.referencia
+        ? `<img src="${z.referencia}?t=${Date.now()}" alt="Referencia de ${escapar(z.nombre)}" style="width:100%;margin-top:6px;border-radius:3px">`
+        : `<p style="font-size:.85rem;margin:6px 0 0">Sin referencia: se usa la primera imagen al arrancar. Capturala con la puerta cerrada.</p>`) : ""}
+    </div>`).join("") : `<p class="vacio">Esta cámara no tiene zonas. Dibujá una sobre la imagen.</p>`;
+  dibujar();
+}
+
+function mensaje(texto, ok = true) {
+  document.getElementById("mensaje").innerHTML = `<div class="mensaje ${ok ? "ok" : "error"}">${escapar(texto)}</div>`;
+}
+
+async function borrar(id) {
+  if (!confirm("¿Borrar esta zona?")) return;
+  await api(`/api/zonas/${id}`, { method: "DELETE" });
+  cargarZonas();
+}
+
+async function referencia(id) {
+  try {
+    await api(`/api/zonas/${id}/referencia`, { method: "POST" });
+    mensaje("Referencia capturada. Desde ahora la puerta se compara con esta imagen.");
+    cargarZonas();
+  } catch (e) { mensaje("No se pudo capturar: " + e.message, false); }
+}
+
+lienzo.addEventListener("click", ev => {
+  const r = lienzo.getBoundingClientRect();
+  puntos.push([+((ev.clientX - r.left) / r.width).toFixed(4), +((ev.clientY - r.top) / r.height).toFixed(4)]);
+  dibujar();
+});
+document.getElementById("btn-deshacer").onclick = () => { puntos.pop(); dibujar(); };
+document.getElementById("btn-limpiar").onclick = () => { puntos = []; dibujar(); };
+document.getElementById("tipo").onchange = dibujar;
+document.getElementById("btn-congelar").onclick = congelar;
+document.getElementById("camara").onchange = () => { puntos = []; congelar(); cargarZonas(); };
+document.getElementById("btn-guardar").onclick = async () => {
+  const tipo = document.getElementById("tipo").value;
+  try {
+    await api("/api/zonas", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ camara_id: camara(), nombre: document.getElementById("nombre").value, tipo, puntos }) });
+    puntos = [];
+    document.getElementById("nombre").value = "";
+    mensaje(tipo === "puerta" ? "Zona guardada. Ahora capturá la referencia con la puerta cerrada." : "Zona guardada.");
+    cargarZonas();
+  } catch (e) { mensaje(e.message, false); }
+};
+congelar();
+cargarZonas();
+</script>
+{% endblock %}

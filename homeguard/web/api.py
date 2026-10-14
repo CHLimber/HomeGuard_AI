@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import csv
 import io
+import threading
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Request
-from fastapi.responses import StreamingResponse
+import cv2
+import numpy as np
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 
+from homeguard.config import RUTA_CONFIG, TIPOS_ZONA, aplanar, leer_comentarios, ruta_abs
 from homeguard.db import modelos as m
 
 if TYPE_CHECKING:
@@ -88,3 +93,238 @@ def camaras(request: Request) -> dict:
         {"id": cid, "nombre": c.nombre, "fuente": str(c.fuente), "activa": c.activa, "detectores": c.detectores,
          **{k: v for k, v in activas.get(cid, {}).items() if k not in ("id", "nombre", "fuente")}}
         for cid, c in sis.config.camaras.items()]}
+
+
+@router.post("/camaras/{camara_id}")
+def editar_camara(camara_id: str, datos: dict[str, Any], request: Request) -> dict:
+    """Cambia la fuente (índice/URL/archivo) y/o si está activa. Se guarda como override y la cámara se reinicia."""
+    sis = _sis(request)
+    if camara_id not in sis.config.camaras:
+        raise HTTPException(404, "cámara desconocida")
+    cambios: dict[str, Any] = {}
+    prefijo = f"{'demo.camaras' if sis.demo else 'camaras'}.{camara_id}"  # en demo las cámaras salen de demo.camaras
+    if "fuente" in datos:
+        fuente = str(datos["fuente"]).strip()
+        if not fuente:
+            raise HTTPException(400, "la fuente no puede estar vacía")
+        cambios[f"{prefijo}.fuente"] = int(fuente) if fuente.isdigit() else fuente
+    if "activa" in datos:
+        cambios[f"{prefijo}.activa"] = bool(datos["activa"])
+    try:
+        sis.actualizar_overrides(cambios)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
+# -- configuración ---------------------------------------------------------------------
+
+# secciones de config.yaml que se pueden editar desde el dashboard
+SECCIONES_EDITABLES = ("alarmas", "motor", "detectores", "yolo_general", "preproceso", "procesamiento", "captura",
+                       "telegram", "panel")
+
+
+@router.get("/config")
+def obtener_config(request: Request) -> dict:
+    sis = _sis(request)
+    datos = sis.config.model_dump()
+    valores = aplanar({seccion: datos[seccion] for seccion in SECCIONES_EDITABLES})
+    descripciones = {**leer_comentarios(RUTA_CONFIG), **leer_comentarios(sis.ruta_config)}
+    return {"valores": valores, "overrides": sis.leer_overrides(), "descripciones": descripciones,
+            "secciones": list(SECCIONES_EDITABLES)}
+
+
+class CambiosConfig(BaseModel):
+    cambios: dict[str, Any]
+
+
+@router.post("/config")
+def guardar_config(datos: CambiosConfig, request: Request) -> dict:
+    sis = _sis(request)
+    for clave in datos.cambios:
+        if clave.split(".")[0] not in SECCIONES_EDITABLES:
+            raise HTTPException(400, f"'{clave}' no se puede editar desde el dashboard")
+    try:
+        sis.actualizar_overrides(datos.cambios)
+    except ValueError as e:
+        raise HTTPException(400, f"Valor inválido: {e}") from e
+    return {"ok": True, "overrides": sis.leer_overrides()}
+
+
+@router.post("/config/restaurar")
+def restaurar_config(request: Request) -> dict:
+    _sis(request).restaurar_config()
+    return {"ok": True}
+
+
+@router.post("/telegram/probar")
+def probar_telegram(request: Request) -> dict:
+    ok, mensaje = _sis(request).telegram.probar()
+    return {"ok": ok, "mensaje": mensaje}
+
+
+# -- zonas -----------------------------------------------------------------------------
+
+class NuevaZona(BaseModel):
+    camara_id: str
+    nombre: str
+    tipo: str
+    puntos: list[list[float]]
+
+
+def _zona_dict(z: m.Zona) -> dict:
+    return {"id": z.id, "camara_id": z.camara_id, "nombre": z.nombre, "tipo": z.tipo, "puntos": z.puntos,
+            "referencia": f"/api/zonas/{z.id}/referencia.jpg" if z.referencia else None}
+
+
+@router.get("/zonas")
+def listar_zonas(request: Request, camara: str | None = None) -> dict:
+    q = select(m.Zona).order_by(m.Zona.id)
+    if camara:
+        q = q.where(m.Zona.camara_id == camara)
+    with _sis(request).bd.sesion() as s:
+        return {"zonas": [_zona_dict(z) for z in s.scalars(q)], "tipos": list(TIPOS_ZONA)}
+
+
+@router.post("/zonas")
+def crear_zona(zona: NuevaZona, request: Request) -> dict:
+    sis = _sis(request)
+    if zona.camara_id not in sis.config.camaras:
+        raise HTTPException(400, "cámara desconocida")
+    if zona.tipo not in TIPOS_ZONA:
+        raise HTTPException(400, f"tipo de zona inválido (usar: {', '.join(TIPOS_ZONA)})")
+    if len(zona.puntos) < 3 or any(len(p) != 2 or not (0 <= p[0] <= 1 and 0 <= p[1] <= 1) for p in zona.puntos):
+        raise HTTPException(400, "el polígono necesita al menos 3 puntos con coordenadas normalizadas entre 0 y 1")
+    nombre = zona.nombre.strip() or zona.tipo
+    with sis.bd.sesion() as s:
+        nueva = m.Zona(camara_id=zona.camara_id, nombre=nombre, tipo=zona.tipo,
+                       puntos=[[round(x, 4), round(y, 4)] for x, y in zona.puntos])
+        s.add(nueva)
+        s.flush()
+        resultado = _zona_dict(nueva)
+    sis.invalidar_zonas(zona.camara_id)
+    return resultado
+
+
+@router.delete("/zonas/{zona_id}")
+def borrar_zona(zona_id: int, request: Request) -> dict:
+    sis = _sis(request)
+    with sis.bd.sesion() as s:
+        z = s.get(m.Zona, zona_id)
+        if z is None:
+            raise HTTPException(404, "zona inexistente")
+        camara = z.camara_id
+        s.delete(z)
+    sis.invalidar_zonas(camara)
+    return {"ok": True}
+
+
+@router.post("/zonas/{zona_id}/referencia")
+def capturar_referencia(zona_id: int, request: Request) -> dict:
+    """Guarda el frame actual (en gris, al ancho de proceso) como referencia de la puerta cerrada."""
+    from homeguard.analizador import redimensionar
+
+    sis = _sis(request)
+    with sis.bd.sesion() as s:
+        z = s.get(m.Zona, zona_id)
+        if z is None or z.tipo != "puerta":
+            raise HTTPException(400, "la referencia solo se captura en zonas de tipo puerta")
+        cam = sis.camaras.obtener(z.camara_id)
+        capturado = cam.leer() if cam else None
+        if capturado is None:
+            raise HTTPException(409, "la cámara no está entregando imágenes")
+        gris = cv2.cvtColor(redimensionar(capturado.imagen, sis.config.procesamiento.ancho_proceso),
+                            cv2.COLOR_BGR2GRAY)
+        carpeta = ruta_abs(sis.config.general.carpeta_referencias)
+        carpeta.mkdir(parents=True, exist_ok=True)
+        ruta = carpeta / f"{z.camara_id}_zona{z.id}.png"
+        cv2.imwrite(str(ruta), gris)
+        z.referencia = str(ruta)
+    sis.invalidar_zonas()
+    return {"ok": True, "referencia": f"/api/zonas/{zona_id}/referencia.jpg"}
+
+
+@router.get("/zonas/{zona_id}/referencia.jpg")
+def ver_referencia(zona_id: int, request: Request) -> Response:
+    with _sis(request).bd.sesion() as s:
+        z = s.get(m.Zona, zona_id)
+        ruta = ruta_abs(z.referencia) if z and z.referencia else None
+    if ruta is None or not ruta.exists():
+        raise HTTPException(404, "sin referencia")
+    img = cv2.imread(str(ruta))
+    return Response(cv2.imencode(".jpg", img)[1].tobytes(), media_type="image/jpeg",
+                    headers={"Cache-Control": "no-store"})
+
+
+# -- residentes --------------------------------------------------------------------------
+
+_lock_registro = threading.Lock()  # YuNet/SFace no son thread-safe: una sola instancia para el registro
+ANCHO_MAX_FOTO = 1280
+
+
+@router.get("/residentes")
+def listar_residentes(request: Request) -> dict:
+    with _sis(request).bd.sesion() as s:
+        filas = s.scalars(select(m.Residente).order_by(m.Residente.nombre)).all()
+        return {"residentes": [{"id": r.id, "nombre": r.nombre, "vectores": len(r.embeddings),
+                                "creado_en": r.creado_en.isoformat(timespec="minutes")} for r in filas]}
+
+
+def _embeddings_de_fotos(sis: Sistema, contenidos: list[tuple[str, bytes]]) -> tuple[list[np.ndarray], list[dict]]:
+    from homeguard.detectores.rostros import extraer_rostros
+
+    vectores, rechazadas = [], []
+    cfg = sis.config.detectores.rostros
+    with _lock_registro:
+        for archivo, datos in contenidos:
+            img = cv2.imdecode(np.frombuffer(datos, np.uint8), cv2.IMREAD_COLOR)
+            if img is None:
+                rechazadas.append({"archivo": archivo, "motivo": "no es una imagen válida"})
+                continue
+            if img.shape[1] > ANCHO_MAX_FOTO:
+                img = cv2.resize(img, (ANCHO_MAX_FOTO, round(img.shape[0] * ANCHO_MAX_FOTO / img.shape[1])))
+            rostros = extraer_rostros(img, sis.modelos, cfg, instancia="registro")
+            if not rostros:
+                rechazadas.append({"archivo": archivo, "motivo": "no se encontró un rostro"})
+                continue
+            mayor = max(rostros, key=lambda r: r.caja[2] * r.caja[3])  # el rostro más grande de la foto
+            vectores.append(mayor.embedding)
+    return vectores, rechazadas
+
+
+@router.post("/residentes")
+async def crear_residente(request: Request, nombre: str = Form(...),
+                          fotos: list[UploadFile] = File(...)) -> dict:
+    """Alta de residente: detecta el rostro más grande de cada foto y guarda SOLO su embedding (no la foto)."""
+    from starlette.concurrency import run_in_threadpool
+
+    sis = _sis(request)
+    nombre = nombre.strip()
+    if not nombre:
+        raise HTTPException(400, "falta el nombre")
+    if not 1 <= len(fotos) <= 10:
+        raise HTTPException(400, "subí entre 1 y 10 fotos (se recomiendan 3 a 5)")
+    contenidos = [(f.filename or "foto", await f.read()) for f in fotos]
+    vectores, rechazadas = await run_in_threadpool(_embeddings_de_fotos, sis, contenidos)
+    if not vectores:
+        raise HTTPException(400, {"mensaje": "ninguna foto tenía un rostro detectable", "rechazadas": rechazadas})
+    with sis.bd.sesion() as s:
+        r = m.Residente(nombre=nombre)
+        r.embeddings = [m.EmbeddingRostro(vector=m.EmbeddingRostro.a_bytes(v)) for v in vectores]
+        s.add(r)
+        s.flush()
+        rid = r.id
+    sis.recargar_residentes()
+    return {"id": rid, "nombre": nombre, "aceptadas": len(vectores), "rechazadas": rechazadas}
+
+
+@router.delete("/residentes/{residente_id}")
+def borrar_residente(residente_id: int, request: Request) -> dict:
+    sis = _sis(request)
+    with sis.bd.sesion() as s:
+        r = s.get(m.Residente, residente_id)
+        if r is None:
+            raise HTTPException(404, "residente inexistente")
+        s.delete(r)
+    sis.recargar_residentes()
+    return {"ok": True}

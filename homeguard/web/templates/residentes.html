@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titulo %}Residentes{% endblock %}
+{% block contenido %}
+<div class="cabecera"><h1>Residentes</h1></div>
+<div class="rejilla">
+  <section class="tarjeta">
+    <h2>Registrar residente</h2>
+    <p style="margin-top:0">Subí de 3 a 5 fotos de frente, con buena luz y con la cara de la persona como rostro más grande.
+       Se guarda solo el vector numérico de cada rostro (128 valores), nunca las fotos.</p>
+    <form id="form-residente">
+      <label for="nombre">Nombre</label>
+      <input id="nombre" name="nombre" required maxlength="100" style="width:100%;margin-bottom:12px">
+      <label for="fotos">Fotos del rostro</label>
+      <input id="fotos" name="fotos" type="file" accept="image/*" multiple required style="width:100%;margin-bottom:12px">
+      <button type="submit" id="btn-registrar">Registrar residente</button>
+    </form>
+    <div id="resultado"></div>
+  </section>
+  <section class="tarjeta">
+    <h2>Registrados</h2>
+    <table>
+      <thead><tr><th>Nombre</th><th>Rostros</th><th>Alta</th><th></th></tr></thead>
+      <tbody id="lista"><tr><td colspan="4" class="vacio">Cargando…</td></tr></tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function cargar() {
+  const { residentes } = await api("/api/residentes");
+  document.getElementById("lista").innerHTML = residentes.length ? residentes.map(r => `
+    <tr><td>${escapar(r.nombre)}</td><td class="datos">${r.vectores}</td><td class="datos">${escapar(r.creado_en.replace("T", " "))}</td>
+    <td><button class="secundario" onclick="borrar(${r.id}, '${escapar(r.nombre).replace(/'/g, "\\'")}')">Dar de baja</button></td></tr>`).join("")
+    : `<tr><td colspan="4" class="vacio">Todavía no hay residentes. Cualquier rostro en la zona de acceso se va a considerar desconocido.</td></tr>`;
+}
+
+async function borrar(id, nombre) {
+  if (!confirm(`¿Dar de baja a ${nombre}? Se borran sus vectores de rostro.`)) return;
+  await api(`/api/residentes/${id}`, { method: "DELETE" });
+  cargar();
+}
+
+document.getElementById("form-residente").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const boton = document.getElementById("btn-registrar");
+  const res = document.getElementById("resultado");
+  boton.disabled = true; boton.textContent = "Analizando fotos…";
+  try {
+    const datos = await api("/api/residentes", { method: "POST", body: new FormData(ev.target) });
+    const rech = datos.rechazadas.map(r => `<li>${escapar(r.archivo)}: ${escapar(r.motivo)}</li>`).join("");
+    res.innerHTML = `<div class="mensaje ok">${escapar(datos.nombre)} registrado con ${datos.aceptadas} rostro(s).
+      ${rech ? `<br>Fotos descartadas:<ul>${rech}</ul>` : ""}</div>`;
+    ev.target.reset();
+    cargar();
+  } catch (e) {
+    let msg = e.message;
+    try { const d = JSON.parse(msg); msg = d.mensaje + ": " + d.rechazadas.map(r => `${r.archivo} (${r.motivo})`).join(", "); } catch (_) {}
+    res.innerHTML = `<div class="mensaje error">No se registró: ${escapar(msg)}</div>`;
+  } finally {
+    boton.disabled = false; boton.textContent = "Registrar residente";
+  }
+});
+cargar();
+</script>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block titulo %}Historial{% endblock %}
+{% block contenido %}
+<div class="cabecera">
+  <h1>Historial de eventos</h1>
+  <a class="boton secundario" id="btn-csv" href="/api/eventos.csv">Exportar CSV</a>
+</div>
+<form id="filtros" class="tarjeta" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:16px">
+  <div><label for="f-tipo">Anomalía</label>
+    <select id="f-tipo" name="tipo"><option value="">Todas</option>
+      <option value="intrusion">Intrusión</option><option value="piscina">Piscina</option><option value="fuego">Fuego</option>
+      <option value="caida">Caída</option><option value="puerta">Puerta</option></select></div>
+  <div><label for="f-camara">Cámara</label>
+    <select id="f-camara" name="camara"><option value="">Todas</option>
+      {% for cid, cam in camaras.items() %}<option value="{{ cid }}">{{ cam.nombre }}</option>{% endfor %}</select></div>
+  <div><label for="f-desde">Desde</label><input type="datetime-local" id="f-desde" name="desde"></div>
+  <div><label for="f-hasta">Hasta</label><input type="datetime-local" id="f-hasta" name="hasta"></div>
+  <button type="submit">Filtrar</button>
+</form>
+<div class="metricas tarjeta" id="resumen" style="margin-bottom:16px"></div>
+<div class="tarjeta" style="overflow-x:auto">
+  <table>
+    <thead><tr><th>Foto</th><th>Fecha y hora</th><th>Anomalía</th><th>Cámara / zona</th><th>Confianza</th>
+      <th>Detección → panel</th><th>Detección → Telegram</th></tr></thead>
+    <tbody id="tabla"><tr><td colspan="7" class="vacio">Cargando…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let objetivo = 2000;
+function ms(v) {
+  if (v === null || v === undefined) return `<span style="color:var(--tinta-suave)">—</span>`;
+  const ok = v <= objetivo;
+  return `<span class="datos" style="color:${ok ? "var(--verde)" : "var(--rojo)"};font-weight:600">${v.toFixed(0)} ms</span>`;
+}
+function estadistica(valores) {
+  const v = valores.filter(x => x !== null && x !== undefined);
+  if (!v.length) return "—";
+  const prom = v.reduce((a, b) => a + b, 0) / v.length;
+  const bajo = v.filter(x => x <= objetivo).length;
+  return `${prom.toFixed(0)} ms prom. · máx ${Math.max(...v).toFixed(0)} · ${(100 * bajo / v.length).toFixed(0)} % &lt; ${objetivo} ms`;
+}
+
+async function cargar() {
+  const params = new URLSearchParams();
+  for (const el of document.querySelectorAll("#filtros [name]")) if (el.value) params.set(el.name, el.value);
+  document.getElementById("btn-csv").href = "/api/eventos.csv?" + params;
+  const datos = await api("/api/eventos?" + params);
+  objetivo = datos.latencia_objetivo_ms;
+  const ev = datos.eventos;
+  document.getElementById("resumen").innerHTML = `
+    <div><b>${ev.length}</b><span>eventos</span></div>
+    <div><b style="font-size:1rem">${estadistica(ev.map(e => e.latencia_panel_ms))}</b><span>detección → panel</span></div>
+    <div><b style="font-size:1rem">${estadistica(ev.map(e => e.latencia_telegram_ms))}</b><span>detección → Telegram</span></div>`;
+  document.getElementById("tabla").innerHTML = ev.length ? ev.map(e => `
+    <tr><td>${e.foto ? `<a href="${e.foto}" target="_blank"><img src="${e.foto}" alt="Foto del evento" loading="lazy"></a>` : ""}</td>
+      <td class="datos">${escapar(e.creado_en.replace("T", " "))}</td>
+      <td><b>${nombreAnomalia(e.tipo)}</b>${e.silenciado ? ` <span class="etiqueta">silenciado</span>` : ""}</td>
+      <td>${escapar(e.camara_id)}<br><span style="color:var(--tinta-suave)">${escapar(e.zona)}</span></td>
+      <td class="datos">${(e.confianza * 100).toFixed(0)} %</td>
+      <td>${ms(e.latencia_panel_ms)}</td>
+      <td>${ms(e.latencia_telegram_ms)}<br><span class="etiqueta">${escapar(e.telegram_estado)}</span></td></tr>`).join("")
+    : `<tr><td colspan="7" class="vacio">No hay eventos con estos filtros.</td></tr>`;
+}
+document.getElementById("filtros").addEventListener("submit", ev => { ev.preventDefault(); cargar(); });
+alAlerta.push(() => setTimeout(cargar, 1500));  // un evento nuevo aparece solo
+cargar();
+</script>
+{% endblock %}

@@ -35,8 +35,10 @@ def anotar(frame: np.ndarray, ctx: Contexto | None, zonas: list[Zona], titulo: s
         pts = z.puntos_px(ancho, alto)
         color = COLOR_ZONA.get(z.tipo, sv.Color.WHITE)
         img = sv.draw_polygon(img, pts, color=color, thickness=2)
-        x, y = int(pts[:, 0].min()), int(pts[:, 1].min())
-        img = sv.draw_text(img, f"{z.nombre} [{z.tipo}]", sv.Point(x + 4, max(y - 10, 10)), text_color=sv.Color.BLACK,
+        # nombre de la zona abajo a la izquierda (arriba van las etiquetas de los detectores)
+        x, y = int(pts[:, 0].min()), int(pts[:, 1].max())
+        anclaje = sv.Point(min(x + 60, ancho - 60), min(y - 10, alto - 30))
+        img = sv.draw_text(img, f"{z.nombre} [{z.tipo}]", anclaje, text_color=sv.Color.BLACK,
                            text_scale=0.4, text_padding=3, background_color=color)
 
     if ctx is not None:

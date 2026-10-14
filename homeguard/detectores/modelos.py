@@ -59,11 +59,11 @@ class Modelos:
                 self._cache[clave] = YOLO(str(p))
             return self._cache[clave]
 
-    def yunet(self, ruta: str, confianza: float, nms: float) -> Any:
-        """Detector de rostros YuNet (una instancia por hilo que lo pida: no es thread-safe)."""
+    def yunet(self, ruta: str, confianza: float, nms: float, instancia: str | None = None) -> Any:
+        """Detector de rostros YuNet. No es thread-safe: una instancia por hilo, o una con nombre (`instancia`)."""
         import cv2
 
-        clave = f"yunet:{ruta}:{threading.get_ident()}"
+        clave = f"yunet:{ruta}:{instancia or threading.get_ident()}"
         with self._lock:
             if clave not in self._cache:
                 p = ruta_abs(ruta)
@@ -75,11 +75,11 @@ class Modelos:
         det.setNMSThreshold(nms)
         return det
 
-    def sface(self, ruta: str) -> Any:
-        """Reconocedor SFace (una instancia por hilo)."""
+    def sface(self, ruta: str, instancia: str | None = None) -> Any:
+        """Reconocedor SFace (una instancia por hilo, o una con nombre)."""
         import cv2
 
-        clave = f"sface:{ruta}:{threading.get_ident()}"
+        clave = f"sface:{ruta}:{instancia or threading.get_ident()}"
         with self._lock:
             if clave not in self._cache:
                 p = ruta_abs(ruta)

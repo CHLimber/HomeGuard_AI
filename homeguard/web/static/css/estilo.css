@@ -49,6 +49,7 @@ a { color: var(--azul); }
 .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
 .tarjeta { background: #f3f6f1; border: 1px solid var(--esmalte-2); border-radius: var(--radio); padding: 16px; }
 .rejilla { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+.rejilla.dividida { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
 .camara img { width: 100%; display: block; border-radius: 3px; background: #222; aspect-ratio: 4/3; object-fit: contain; }
 .camara h3 { display: flex; justify-content: space-between; align-items: baseline; }
 .etiqueta { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .78rem; background: var(--esmalte-2); }
@@ -87,7 +88,7 @@ td img { height: 54px; border-radius: 3px; display: block; }
   .riel a { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; padding: 8px 12px; }
   .riel a.activa { border-bottom-color: var(--ambar); }
   .contenido { padding: 14px 16px; }
-  .rejilla { grid-template-columns: 1fr; }
+  .rejilla, .rejilla.dividida { grid-template-columns: 1fr; }
   .lampara { font-size: .7rem; padding: 8px 2px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

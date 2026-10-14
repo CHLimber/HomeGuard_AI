@@ -290,6 +290,26 @@ def cargar_config(
     return construir_config(datos, demo=demo)
 
 
+def leer_comentarios(ruta: str | Path = RUTA_CONFIG) -> dict[str, str]:
+    """Comentarios al final de cada línea de config.yaml, por clave con puntos (los usa el dashboard)."""
+    comentarios: dict[str, str] = {}
+    pila: list[tuple[int, str]] = []  # (indentación, clave)
+    with open(ruta, encoding="utf-8") as f:
+        for linea in f:
+            m = re.match(r"^(\s*)([A-Za-z_]\w*)\s*:(.*)$", linea.rstrip("\n"))
+            if not m:
+                continue
+            sangria, clave, resto = len(m.group(1)), m.group(2), m.group(3)
+            while pila and pila[-1][0] >= sangria:
+                pila.pop()
+            ruta_clave = ".".join([c for _, c in pila] + [clave])
+            if "#" in resto:
+                comentarios[ruta_clave] = resto.split("#", 1)[1].strip()
+            if resto.split("#", 1)[0].strip() == "":  # la clave abre un bloque
+                pila.append((sangria, clave))
+    return comentarios
+
+
 def cargar_secretos() -> Secretos:
     load_dotenv(RAIZ / ".env")
     return Secretos(
