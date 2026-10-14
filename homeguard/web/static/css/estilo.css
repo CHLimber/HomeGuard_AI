@@ -1,0 +1,93 @@
+/* HomeGuard AI — estética de anunciador de central de alarma.
+   Sin CDN ni fuentes externas: todo funciona sin internet en la feria. */
+:root {
+  --esmalte: #dfe4dc;        /* fondo: esmalte de equipo industrial */
+  --esmalte-2: #cfd6cc;
+  --tinta: #1d2321;          /* texto principal */
+  --tinta-suave: #56605b;
+  --marco: #2b3330;          /* marcos de lámparas y paneles oscuros */
+  --lampara-off: #3a4440;
+  --rojo: #e5281c;           /* alarma */
+  --rojo-oscuro: #5a0b06;
+  --ambar: #f0a020;          /* atención / calibración */
+  --verde: #2fa35a;          /* normal / conectado */
+  --azul: #2b6cb0;
+  --radio: 6px;
+  --f-senal: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", sans-serif-condensed, sans-serif;
+  --f-texto: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --f-datos: "Cascadia Mono", Consolas, "Roboto Mono", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--esmalte); color: var(--tinta); font-family: var(--f-texto); font-size: 15px; line-height: 1.45; }
+h1, h2, h3 { font-family: var(--f-senal); font-weight: 600; letter-spacing: .02em; margin: 0 0 .5rem; }
+a { color: var(--azul); }
+:focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; }
+.datos { font-family: var(--f-datos); font-variant-numeric: tabular-nums; }
+
+/* ---------- Lámparas anunciadoras (firma visual compartida) ---------- */
+.lamparas { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 8px; background: var(--marco); border-radius: var(--radio); }
+.lampara { background: var(--lampara-off); color: #8d9893; border-radius: 3px; padding: 10px 6px; text-align: center;
+  font-family: var(--f-senal); text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), inset 0 -6px 12px rgba(0,0,0,.25); transition: background .15s, color .15s; }
+.lampara .icono { display: block; font-size: 1.5em; filter: grayscale(1) opacity(.45); }
+.lampara.atencion { background: #6b5320; color: #ffd98a; }
+.lampara.atencion .icono { filter: none; }
+.lampara.on { background: var(--rojo); color: #fff; box-shadow: 0 0 18px var(--rojo), inset 0 0 0 1px rgba(255,255,255,.4); }
+.lampara.on .icono { filter: none; }
+
+/* ---------- Dashboard ---------- */
+.tablero { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; }
+.riel { background: var(--marco); color: #c9d2cd; padding: 18px 0; display: flex; flex-direction: column; }
+.riel .marca { font-family: var(--f-senal); font-size: 1.25rem; color: #fff; padding: 0 18px 16px; letter-spacing: .04em; }
+.riel .marca small { display: block; font-size: .7rem; color: var(--ambar); letter-spacing: .12em; }
+.riel a { color: inherit; text-decoration: none; padding: 9px 18px; border-left: 4px solid transparent; font-family: var(--f-senal); letter-spacing: .03em; }
+.riel a:hover { background: rgba(255,255,255,.05); }
+.riel a.activa { border-left-color: var(--ambar); color: #fff; background: rgba(255,255,255,.07); }
+.riel .pie { margin-top: auto; padding: 12px 18px; font-size: .8rem; }
+.contenido { padding: 22px 26px; min-width: 0; }
+.cabecera { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+.tarjeta { background: #f3f6f1; border: 1px solid var(--esmalte-2); border-radius: var(--radio); padding: 16px; }
+.rejilla { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+.camara img { width: 100%; display: block; border-radius: 3px; background: #222; aspect-ratio: 4/3; object-fit: contain; }
+.camara h3 { display: flex; justify-content: space-between; align-items: baseline; }
+.etiqueta { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .78rem; background: var(--esmalte-2); }
+.etiqueta.ok { background: #cdebd8; color: #175c32; }
+.etiqueta.mal { background: #f7d0cc; color: #8a1a12; }
+.etiqueta.aviso { background: #fbe6bd; color: #7a4d00; }
+.metricas { display: flex; gap: 22px; flex-wrap: wrap; }
+.metricas div b { display: block; font-family: var(--f-datos); font-size: 1.3rem; }
+.metricas div span { font-size: .8rem; color: var(--tinta-suave); }
+button, .boton { font-family: var(--f-senal); font-size: 1rem; letter-spacing: .03em; padding: 8px 16px; border-radius: var(--radio);
+  border: 1px solid var(--marco); background: var(--marco); color: #fff; cursor: pointer; text-decoration: none; display: inline-block; }
+button.secundario, .boton.secundario { background: transparent; color: var(--tinta); }
+button.peligro { background: var(--rojo); border-color: var(--rojo); }
+button:disabled { opacity: .5; cursor: default; }
+input, select { font: inherit; padding: 6px 8px; border: 1px solid #aab4ae; border-radius: 4px; background: #fff; color: var(--tinta); }
+label { display: block; font-size: .85rem; color: var(--tinta-suave); margin-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th { text-align: left; font-family: var(--f-senal); font-weight: 600; border-bottom: 2px solid var(--marco); padding: 6px 8px; }
+td { border-bottom: 1px solid var(--esmalte-2); padding: 6px 8px; vertical-align: middle; }
+td img { height: 54px; border-radius: 3px; display: block; }
+.mensaje { padding: 10px 14px; border-radius: var(--radio); margin: 10px 0; }
+.mensaje.ok { background: #cdebd8; }
+.mensaje.error { background: #f7d0cc; }
+.vacio { color: var(--tinta-suave); padding: 24px; text-align: center; }
+.banner-alarma { display: none; background: var(--rojo); color: #fff; padding: 10px 16px; border-radius: var(--radio); margin-bottom: 14px;
+  font-family: var(--f-senal); font-size: 1.15rem; align-items: center; justify-content: space-between; gap: 12px; }
+.banner-alarma.visible { display: flex; }
+.banner-alarma button { background: #fff; color: var(--rojo); border-color: #fff; }
+.conexion::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--rojo); margin-right: 6px; }
+.conexion.ok::before { background: var(--verde); }
+
+@media (max-width: 760px) {
+  .tablero { grid-template-columns: 1fr; }
+  .riel { flex-direction: row; overflow-x: auto; padding: 8px; }
+  .riel .marca, .riel .pie { display: none; }
+  .riel a { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; padding: 8px 12px; }
+  .riel a.activa { border-bottom-color: var(--ambar); }
+  .contenido { padding: 14px 16px; }
+  .rejilla { grid-template-columns: 1fr; }
+  .lampara { font-size: .7rem; padding: 8px 2px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

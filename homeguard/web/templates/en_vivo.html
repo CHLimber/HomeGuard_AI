@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}En vivo{% endblock %}
+{% block contenido %}
+<div class="cabecera">
+  <h1>En vivo</h1>
+  <div class="metricas">
+    <div><b id="m-cpu">—</b><span>CPU del sistema</span></div>
+    <div><b id="m-cpu-proc">—</b><span>CPU de HomeGuard</span></div>
+    <div><b id="m-ram">—</b><span>RAM (MB)</span></div>
+    <div><b id="m-paneles">—</b><span>paneles conectados</span></div>
+    <div><b id="m-telegram">—</b><span>Telegram</span></div>
+  </div>
+</div>
+
+<div class="lamparas" id="semaforo" style="margin-bottom:18px"></div>
+
+<div class="rejilla">
+  {% for cid, cam in camaras.items() if cam.activa %}
+  <section class="tarjeta camara">
+    <h3>{{ cam.nombre }} <span class="etiqueta" id="estado-{{ cid }}">…</span></h3>
+    <img src="/stream/{{ cid }}" alt="Video en vivo de {{ cam.nombre }}">
+    <div class="datos" style="font-size:.85rem;margin-top:6px" id="info-{{ cid }}"></div>
+  </section>
+  {% else %}
+  <p class="vacio">No hay cámaras activas. Activá alguna en Configuración o en config.yaml.</p>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const semaforo = document.getElementById("semaforo");
+dibujarLamparas(semaforo);
+alTelemetria.push(t => {
+  pintarLamparas(semaforo, t.estado, t.activos);
+  document.getElementById("m-cpu").textContent = t.cpu_sistema.toFixed(0) + " %";
+  document.getElementById("m-cpu-proc").textContent = t.cpu_proceso.toFixed(0) + " %";
+  document.getElementById("m-ram").textContent = t.ram_mb;
+  document.getElementById("m-paneles").textContent = t.paneles_conectados;
+  const tg = t.telegram;
+  document.getElementById("m-telegram").textContent =
+    !tg.habilitado ? "desactivado" : tg.sin_conexion ? `sin conexión (${tg.pendientes})` : `ok (${tg.pendientes} en cola)`;
+  t.camaras.forEach(c => {
+    const est = document.getElementById("estado-" + c.id);
+    if (!est) return;
+    est.textContent = c.conectada ? "conectada" : "sin señal";
+    est.className = "etiqueta " + (c.conectada ? "ok" : "mal");
+    document.getElementById("info-" + c.id).textContent =
+      `captura ${c.fps_captura} FPS · análisis ${c.fps_proceso} FPS · ${c.ms_por_frame} ms/frame · ${c.resolucion || "—"}` +
+      (c.error ? ` · ${c.error}` : "");
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,36 @@
+/* Panel de alarma: se ve desde lejos, en un celular o tablet a pantalla completa. */
+html, body { height: 100%; }
+body.panel { display: flex; flex-direction: column; overflow: hidden; background: var(--esmalte); }
+.panel-barra { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px;
+  font-family: var(--f-senal); letter-spacing: .05em; }
+.panel-barra .titulo { font-size: 1.1rem; font-weight: 600; }
+.panel-estado { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 8px 16px; min-height: 0; }
+.panel-estado .rotulo { font-family: var(--f-senal); font-weight: 700; text-transform: uppercase; line-height: 1;
+  font-size: clamp(2.4rem, 11vw, 7rem); letter-spacing: .02em; }
+.panel-estado .sub { font-family: var(--f-senal); font-size: clamp(1rem, 3.6vw, 1.8rem); margin-top: .4em; color: var(--tinta-suave); }
+.panel .lamparas { margin: 0 16px; font-size: clamp(.75rem, 2.6vw, 1.3rem); }
+.panel .lampara { padding: clamp(10px, 3vw, 24px) 4px; }
+.panel .lampara .icono { font-size: 2em; }
+.evento { display: none; gap: 14px; align-items: center; margin: 14px 16px 0; padding: 10px; background: var(--marco); color: #e8edea; border-radius: var(--radio); }
+.evento.visible { display: flex; }
+.evento img { width: min(42vw, 260px); border-radius: 3px; background: #000; }
+.evento .datos-evento { font-family: var(--f-senal); font-size: clamp(.95rem, 3vw, 1.4rem); line-height: 1.35; }
+.evento .datos-evento b { color: #fff; font-size: 1.15em; display: block; }
+.panel-acciones { display: flex; gap: 12px; padding: 14px 16px 18px; }
+.panel-acciones button { flex: 1; font-size: clamp(1.1rem, 4.5vw, 2rem); padding: .7em; font-weight: 700; }
+#btn-silenciar { background: #fff; color: var(--rojo); border: 3px solid var(--rojo); }
+#btn-probar { flex: 0 0 auto; background: transparent; color: var(--tinta); font-size: 1rem; }
+
+/* Alarma: toda la pantalla parpadea en rojo mientras el estado no sea 0 */
+body.panel.alarma { animation: parpadeo .7s steps(1) infinite; color: #fff; }
+body.panel.alarma .panel-estado .sub, body.panel.alarma .panel-barra { color: #fff; }
+@keyframes parpadeo { 0% { background: var(--rojo); } 50% { background: var(--rojo-oscuro); } }
+@media (prefers-reduced-motion: reduce) { body.panel.alarma { animation: none; background: var(--rojo); } }
+
+/* Pantalla inicial: armar la alarma (el toque desbloquea el audio) */
+.armar { position: fixed; inset: 0; background: var(--marco); color: #fff; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 22px; text-align: center; padding: 24px; z-index: 10; }
+.armar.oculto { display: none; }
+.armar h1 { font-size: clamp(1.6rem, 6vw, 3rem); }
+.armar p { max-width: 34em; color: #b9c4bf; }
+.armar button { font-size: clamp(1.5rem, 7vw, 3rem); padding: .6em 1.4em; background: var(--rojo); border: 0; font-weight: 700; letter-spacing: .06em; }

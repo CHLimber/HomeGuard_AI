@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2b3330">
+  <title>HomeGuard — Panel de alarma</title>
+  <link rel="stylesheet" href="/static/css/estilo.css">
+  <link rel="stylesheet" href="/static/css/panel.css">
+</head>
+<body class="panel">
+  <div class="armar" id="armar">
+    <h1>Panel de alarma HomeGuard</h1>
+    <p>Tocá el botón para armar el panel. Ese toque habilita la sirena, que el navegador bloquea hasta que alguien toca la pantalla.
+       Dejá esta pantalla abierta y el dispositivo con volumen alto.</p>
+    <button id="btn-armar">ARMAR ALARMA</button>
+  </div>
+
+  <div class="panel-barra">
+    <span class="titulo">HOMEGUARD AI{% if demo %} · DEMO{% endif %}</span>
+    <span class="conexion" id="conexion">Desconectado</span>
+  </div>
+
+  <div class="panel-estado">
+    <div class="rotulo" id="rotulo">Sistema normal</div>
+    <div class="sub" id="sub">Vigilando</div>
+  </div>
+
+  <div class="lamparas" id="lamparas"></div>
+
+  <div class="evento" id="evento">
+    <img id="evento-foto" alt="Foto del último evento">
+    <div class="datos-evento">
+      <b id="evento-tipo"></b>
+      <span id="evento-zona"></span><br>
+      <span id="evento-camara"></span><br>
+      <span id="evento-hora" class="datos"></span>
+    </div>
+  </div>
+
+  <div class="panel-acciones">
+    <button id="btn-silenciar">SILENCIAR</button>
+    <button id="btn-probar" title="Hace sonar la sirena 2 segundos">Probar sirena</button>
+  </div>
+
+  <script src="/static/js/comun.js"></script>
+  <script src="/static/js/panel.js"></script>
+</body>
+</html>

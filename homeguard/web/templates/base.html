@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}HomeGuard AI{% endblock %} — HomeGuard AI</title>
+  <link rel="stylesheet" href="/static/css/estilo.css">
+</head>
+<body>
+<div class="tablero">
+  <nav class="riel" aria-label="Secciones">
+    <div class="marca">HOMEGUARD AI<small>{% if demo %}MODO DEMO{% else %}VIGILANCIA{% endif %}</small></div>
+    <a href="/en-vivo" class="{{ 'activa' if seccion == 'en_vivo' }}">En vivo</a>
+    <a href="/calibracion" class="{{ 'activa' if seccion == 'calibracion' }}">Calibración</a>
+    <a href="/zonas" class="{{ 'activa' if seccion == 'zonas' }}">Zonas</a>
+    <a href="/residentes" class="{{ 'activa' if seccion == 'residentes' }}">Residentes</a>
+    <a href="/configuracion" class="{{ 'activa' if seccion == 'configuracion' }}">Configuración</a>
+    <a href="/historial" class="{{ 'activa' if seccion == 'historial' }}">Historial</a>
+    <a href="/alarma" target="_blank">Panel de alarma ↗</a>
+    <div class="pie"><span class="conexion" id="conexion-dash">Desconectado</span></div>
+  </nav>
+  <main class="contenido">
+    <div class="banner-alarma" id="banner-alarma" role="alert">
+      <span id="banner-texto">¡Alarma!</span>
+      <button id="banner-silenciar">Silenciar</button>
+    </div>
+    {% block contenido %}{% endblock %}
+  </main>
+</div>
+<script src="/static/js/comun.js"></script>
+<script src="/static/js/dashboard.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
