@@ -55,6 +55,7 @@ class Sistema:
         self.registro = Registro(self.bd, ruta_abs(cfg.general.carpeta_eventos))
         self.ws = GestorWebSocket()
         self.motor = MotorReglas(cfg.alarmas, cfg.motor)
+        self.motor.fijar_armado(consultas.leer_armado(self.bd))
         self.telegram = EnviadorTelegram(self.secretos.telegram_token, self.secretos.telegram_chat_id,
                                          cfg.telegram, al_terminar=self._telegram_terminado,
                                          habilitado=not sin_telegram)
@@ -99,7 +100,8 @@ class Sistema:
 
     def restaurar_config(self) -> Config:
         with self.bd.sesion() as s:
-            s.execute(delete(m.ConfigOverride))
+            # las claves internas (armado/desarmado) no son cambios de config.yaml: se conservan
+            s.execute(delete(m.ConfigOverride).where(~m.ConfigOverride.clave.startswith(consultas.PREFIJO_INTERNO)))
         cfg = cargar_config(self.ruta_config, demo=self.demo)
         self._aplicar_config(cfg)
         return cfg
@@ -253,6 +255,16 @@ class Sistema:
         self.ws.emitir_desde_hilo("estado", {"tipo": "estado", "estado": estado, "silenciada": True})
         return estado
 
+    def fijar_armado(self, armado: bool) -> bool:
+        """Arma o desarma el sistema (se recuerda entre reinicios). Desarmado no confirma alarmas."""
+        self.motor.fijar_armado(armado)
+        consultas.guardar_armado(self.bd, armado)
+        log.warning("Sistema %s desde el dashboard", "ARMADO" if armado else "DESARMADO")
+        mensaje = {"tipo": "estado", "estado": self.motor.estado, "armado": armado}
+        self.ws.emitir_desde_hilo("alarma", mensaje)
+        self.ws.emitir_desde_hilo("estado", mensaje)
+        return armado
+
     def estado_actual(self) -> dict[str, Any]:
         return {"tipo": "estado", "estado": self.motor.estado, "activos": self.motor.activos,
-                "ultimo_evento": self.ultimo_evento, "demo": self.demo}
+                "armado": self.motor.armado, "ultimo_evento": self.ultimo_evento, "demo": self.demo}

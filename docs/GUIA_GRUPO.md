@@ -150,13 +150,63 @@ python -m homeguard.preproceso.benchmark
 Actualiza `docs/BENCHMARK.md` con los tiempos de esa laptop. Úsenlo en la defensa junto con
 [BITWISE.md](BITWISE.md).
 
-## 9. Checklist del día de la feria
+## 9. Tablas para el informe Word (sección 6.2) (≈ 5 min)
+
+La sección 6.2 "Resultados esperados" del informe hoy dice "Por medir". Cuando ya corrieron el benchmark (paso 8),
+`evaluar_detector.py` para cada detector y una sesión en vivo con el panel y Telegram (paso 6):
+
+```bash
+python scripts/generar_tablas_informe.py                      # eventos reales
+python scripts/generar_tablas_informe.py --desde 2026-11-20   # solo los eventos de la sesión de pruebas
+```
+
+Escribe `docs/informe/tablas_informe.md` con tres tablas listas para pegar (benchmark, precisión/recall/F1 por
+detector y latencias: media, P95, máximo y % bajo 2 s) y un CSV por tabla, que se puede abrir con Excel y copiar al
+Word. Lo que todavía no se midió sale como **"Por medir"**: el script no inventa números. Usen `--desde` para no
+mezclar eventos de pruebas viejas, y no usen `--demo` para el informe (son eventos sintéticos).
+
+## 10. Capturas de pantalla para el Anexo J (≈ 20 min)
+
+Sáquenlas con el sistema corriendo con cámaras reales y la maqueta, no en `--demo`. En Windows: `Win + Shift + S`;
+en el celular, la captura normal. Guárdenlas en PNG con el nombre indicado.
+
+| Archivo | Qué tiene que verse | Cómo obtenerla |
+|---|---|---|
+| `J1_panel_alarma.png` | Panel `/alarma` en rojo con el indicador de la anomalía encendido, la foto, el tipo, la zona y la hora del evento | Celular/tablet del panel, después de **ARMAR ALARMA**, mientras suena una alarma (por ejemplo, abrir la puerta fuera de horario). Captura desde el propio celular |
+| `J2_en_vivo.png` | En vivo con las cajas de YOLO, las zonas dibujadas, las etiquetas, el semáforo de las 5 anomalías y FPS/CPU | Dashboard → **En vivo** con una persona en la maqueta. Si se puede, que se vea un semáforo en rojo |
+| `J3_editor_zonas.png` | Editor de zonas con el frame congelado y los polígonos de las zonas (acceso, piscina, borde, puerta, fuego) | Dashboard → **Zonas** → elegir la cámara → congelar el frame. Para la puerta, que se vea también la vista previa de la referencia |
+| `J4_calibracion.png` | Valores crudos de cada detector junto a su umbral, alguno en rojo, y la probabilidad de falsa alarma N de M | Dashboard → **Calibración** mientras provocan una situación (abrir la puerta, mostrar la llama) |
+| `J5_historial.png` | Tabla del historial con miniaturas, confianza y latencias (verdes si son < 2 s) | Dashboard → **Historial** después de la sesión de pruebas, con eventos de varios tipos |
+| `J6_telegram.png` | Mensaje del bot con la foto del evento, el tipo, la zona y la hora | Celular del dueño (o del grupo de Telegram) al recibir una alarma |
+
+Para el informe, recorten las barras del navegador y tapen nombres o caras de personas que no firmaron el
+consentimiento (Anexo I).
+
+## 11. (Opcional) Fase 7: compilar el SIMD en C (≈ 20 min)
+
+Sin compilar, el sistema funciona igual. Compilarlo suma la fila E del benchmark y el ensamblador real para la defensa.
+
+1. Instalar MSYS2 desde https://www.msys2.org (instalación por defecto en `C:\msys64`).
+2. Abrir la terminal "MSYS2 UCRT64" y ejecutar `pacman -S mingw-w64-ucrt-x86_64-gcc`.
+3. Agregar `C:\msys64\ucrt64\bin` al PATH de Windows y abrir una terminal nueva. `gcc --version` tiene que responder.
+   Alternativa: Visual Studio Build Tools con "Desarrollo para el escritorio con C++", y ejecutar desde la
+   "x64 Native Tools Command Prompt".
+4. Desde la carpeta del proyecto: `nativo\compilar.bat`. En Linux/macOS: `sh nativo/compilar.sh`.
+5. `.venv\Scripts\python -m pytest tests\test_nativo.py -q`: ya no tienen que aparecer tests saltados.
+6. `.venv\Scripts\python -m homeguard.preproceso.benchmark`: aparece la fila E en `docs/BENCHMARK.md`.
+7. Pegar en la sección 8 de `docs/BITWISE.md` el bucle de `xor_avx2` de `nativo/bitwise_simd.s` y la fila E medida.
+
+La DLL tiene que ser de 64 bits, igual que Python.
+
+## 12. Checklist del día de la feria
 
 - [ ] Laptop enchufada; en Windows: plan de energía "Alto rendimiento" y suspensión desactivada.
 - [ ] Hotspot encendido; laptop, celulares cámara y tablet del panel conectados a él.
 - [ ] Celulares cámara enchufados, IP Webcam iniciado, pantalla sin bloqueo.
 - [ ] `python scripts/verificar_entorno.py` → 0 errores y cámaras "entregan frames".
 - [ ] `python run.py` (o `python run.py --sin-telegram` si no hay internet: el panel funciona igual).
+- [ ] Sistema **armado** (si el dashboard muestra el aviso ámbar "Sistema desarmado", tocar **Armar sistema**).
+- [ ] Windows con la zona horaria de La Paz (los horarios de la puerta usan la hora de la laptop).
 - [ ] Panel abierto en la tablet → **ARMAR ALARMA** → Probar sirena.
 - [ ] Recapturar la referencia de la puerta con la luz del lugar.
 - [ ] Pasada rápida por Calibración: cada anomalía dispara una vez.
@@ -164,7 +214,7 @@ Actualiza `docs/BENCHMARK.md` con los tiempos de esa laptop. Úsenlo en la defen
       `data/eventos/*.jpg`. **Ojo: esto borra también residentes y zonas**; para conservarlos, solo filtrá el
       historial por fecha.
 - [ ] Plan B sin cámaras: `python run.py --demo` (la puerta sintética dispara la alarma cada vuelta pasado el
-      cooldown de 60 s).
+      cooldown de 30 s).
 
 ## Lo que NO hace falta hacer
 

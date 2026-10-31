@@ -70,11 +70,11 @@ camaras:
 #               este tiempo.
 # -----------------------------------------------------------------------------
 alarmas:
-  intrusion: {votos_n: 5, votos_m: 5, cooldown_s: 60}   # N = M => K frames consecutivos con rostro desconocido
-  piscina:   {votos_n: 3, votos_m: 5, cooldown_s: 60}
-  fuego:     {votos_n: 3, votos_m: 5, cooldown_s: 60}   # capa 2 > umbral en 3 de 5 frames
-  caida:     {votos_n: 1, votos_m: 1, cooldown_s: 120}  # el detector ya exige descenso + 5 s de inmovilidad
-  puerta:    {votos_n: 1, votos_m: 1, cooldown_s: 60}   # el detector ya exige 2 s de cambio sostenido
+  intrusion: {votos_n: 5, votos_m: 5, cooldown_s: 30}   # N = M => K frames consecutivos con rostro desconocido
+  piscina:   {votos_n: 3, votos_m: 5, cooldown_s: 30}
+  fuego:     {votos_n: 3, votos_m: 5, cooldown_s: 30}   # capa 2 > umbral en 3 de 5 frames
+  caida:     {votos_n: 1, votos_m: 1, cooldown_s: 30}   # el detector ya exige descenso + 5 s de inmovilidad
+  puerta:    {votos_n: 1, votos_m: 1, cooldown_s: 30}   # el detector ya exige 2 s de cambio sostenido
 
 motor:
   auto_limpiar_s: 0   # segundos tras los cuales el estado vuelve solo a 0 (0 = queda sonando hasta "SILENCIAR")
@@ -91,7 +91,7 @@ detectores:
     modelo_detector: models/face_detection_yunet_2023mar.onnx
     modelo_reconocedor: models/face_recognition_sface_2021dec.onnx
     umbral_similitud: 0.363      # similitud coseno mínima para considerar que el rostro es de un residente (OpenCV Zoo)
-    confianza_rostro: 0.70       # confianza mínima de YuNet para aceptar un rostro
+    confianza_rostro: 0.90       # confianza mínima de YuNet para aceptar un rostro
     nms: 0.30                    # supresión de no-máximos de YuNet
     tamano_min_rostro_px: 40     # rostros más chicos que esto (en la imagen original) se ignoran
     usar_resolucion_original: true  # busca rostros en el frame a resolución completa (mejor a distancia)
@@ -100,7 +100,7 @@ detectores:
   piscina:
     tiempo_sin_supervisor_s: 2.0      # (a) segundos con alguien en la piscina sin adulto en el borde antes de marcar
     inmovil_desplazamiento_px: 15     # (b) si el centro se mueve menos que esto (px del frame de proceso)...
-    inmovil_tiempo_s: 10.0            # ...durante este tiempo dentro de la piscina => posible ahogamiento
+    inmovil_tiempo_s: 8.0             # ...durante este tiempo dentro de la piscina => posible ahogamiento
     olvidar_track_s: 3.0              # se descarta el historial de un tracker_id que no aparece en este tiempo
 
   fuego:
@@ -109,7 +109,9 @@ detectores:
     hue_max: 35            # tono máximo (35 ~ amarillo)
     sat_min: 100           # saturación mínima (0-255)
     val_min: 150           # brillo mínimo (0-255)
-    umbral_capa1_pct: 0.30 # % de píxeles de la zona que deben ser color fuego Y en movimiento para activar la capa 2
+    modo_capa1: lut9       # color de la capa 1: "lut332" (índice de 8 bits + cv2.LUT), "lut9" (índice de 9 bits del informe + tabla de 512) o "hsv" (cv2.inRange)
+    lut_archivo: ""        # tabla .npy hecha con scripts/generar_lut_fuego.py ("" = generarla con los rangos de arriba; no aplica a "hsv")
+    umbral_capa1_pct: 0.50 # % de píxeles de la zona que deben ser color fuego Y en movimiento para activar la capa 2
     confianza_capa2: 0.50  # confianza mínima del YOLO fire-smoke
     clases_capa2: [0, 1]   # 0=smoke, 1=fire
 
@@ -117,7 +119,7 @@ detectores:
     modelo: models/yolov8n-pose.pt
     confianza: 0.40               # confianza mínima de la persona detectada
     cada_n_frames: 2              # la pose se calcula cada N frames (ahorra CPU)
-    confianza_keypoint: 0.30      # keypoints con menos confianza se ignoran
+    confianza_keypoint: 0.50      # keypoints con menos confianza se ignoran
     ratio_min: 1.4                # ancho/alto del bbox por encima de esto => cuerpo horizontal
     angulo_max_grados: 45         # torso (hombros->caderas) a menos de este ángulo de la horizontal
     ventana_descenso_s: 1.0       # el paso de "de pie" a "en el suelo" tiene que ocurrir en menos de esto
@@ -129,7 +131,7 @@ detectores:
 
   puerta:
     metodo: absdiff          # "absdiff" (diferencia de grises) o "xor" (XOR de imágenes binarizadas)
-    umbral_diferencia: 35    # absdiff: diferencia de gris mínima para contar un píxel como cambiado
+    umbral_diferencia: 30    # absdiff: diferencia de gris mínima para contar un píxel como cambiado
     umbral_binarizacion: 0   # xor: umbral de binarización (0 = Otsu automático)
     desenfoque_px: 5         # desenfoque previo para reducir ruido (0 = sin desenfoque)
     porcentaje_min: 25.0     # % de píxeles de la zona cambiados para considerar la puerta abierta
@@ -141,7 +143,7 @@ telegram:
   activo: true             # false = no envía nada (solo log); también con: python run.py --sin-telegram
   ancho_foto: 640          # la foto se reduce a este ancho
   calidad_jpeg: 70         # calidad JPEG de la foto enviada
-  timeout_s: 10            # timeout de cada intento de envío
+  timeout_s: 5             # timeout de cada intento de envío
   reintento_max_s: 60      # espera máxima entre reintentos si no hay internet
   descartar_tras_min: 120  # eventos más viejos que esto ya no se envían
 

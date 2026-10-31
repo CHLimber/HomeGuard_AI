@@ -4,7 +4,8 @@ const lamparas = $("lamparas");
 dibujarLamparas(lamparas);
 
 let estado = 0;
-let armado = false;
+let sistemaArmado = true;  // lo decide el dashboard (armar/desarmar sistema)
+let armado = false;        // panel armado: el toque inicial que habilita el audio
 let audio = null;      // AudioContext (se crea al tocar "ARMAR")
 let sirena = null;     // { osc, gain, timer }
 let vibracion = null;
@@ -57,8 +58,11 @@ function aplicarEstado(nuevo) {
   const enAlarma = estado !== 0;
   document.body.classList.toggle("alarma", enAlarma);
   const activas = ANOMALIAS.filter((a, n) => bitActivo(estado, n)).map(a => a.nombre);
-  $("rotulo").textContent = enAlarma ? "¡Alarma!" : "Sistema normal";
-  $("sub").textContent = enAlarma ? activas.join(" · ") : (armado ? "Vigilando" : "Panel sin armar");
+  document.body.classList.toggle("desarmado", !sistemaArmado && !enAlarma);
+  $("rotulo").textContent = enAlarma ? "¡Alarma!" : sistemaArmado ? "Sistema normal" : "SISTEMA DESARMADO";
+  $("sub").textContent = enAlarma ? activas.join(" · ")
+    : !sistemaArmado ? "No suena ninguna alarma hasta que se arme desde el dashboard"
+    : (armado ? "Vigilando" : "Panel sin armar");
   if (enAlarma && armado) { iniciarSirena(); iniciarVibracion(); }
   else { detenerSirena(); detenerVibracion(); }
 }
@@ -84,7 +88,9 @@ const conexion = conectarWS("/ws/alarma", {
       aplicarEstado(msg.estado);
     } else if (msg.tipo === "estado") {
       if (msg.ultimo_evento) mostrarEvento(msg.ultimo_evento);
-      if (msg.estado !== estado) aplicarEstado(msg.estado);
+      const cambioArmado = msg.armado !== undefined && msg.armado !== sistemaArmado;
+      if (msg.armado !== undefined) sistemaArmado = msg.armado;
+      if (msg.estado !== estado || cambioArmado) aplicarEstado(msg.estado);
     }
   },
 });

@@ -14,6 +14,7 @@ Ejemplo: fuego + puerta = 0b0001_0100 = 20.
 """
 from __future__ import annotations
 
+# Informe, ecuación del byte de estado y Anexo A: bit n = 1 << n
 INTRUSION = 1 << 0  # 1
 PISCINA = 1 << 1    # 2
 FUEGO = 1 << 2      # 4

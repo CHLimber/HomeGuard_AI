@@ -78,6 +78,11 @@ td img { height: 54px; border-radius: 3px; display: block; }
   font-family: var(--f-senal); font-size: 1.15rem; align-items: center; justify-content: space-between; gap: 12px; }
 .banner-alarma.visible { display: flex; }
 .banner-alarma button { background: #fff; color: var(--rojo); border-color: #fff; }
+.banner-desarmado { display: none; background: var(--ambar); color: #2b1d00; padding: 10px 16px; border-radius: var(--radio);
+  margin-bottom: 14px; font-family: var(--f-senal); font-size: 1.05rem; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; }
+.banner-desarmado.visible { display: flex; }
+.banner-desarmado button { background: #2b1d00; color: #fff; border-color: #2b1d00; }
 .conexion::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--rojo); margin-right: 6px; }
 .conexion.ok::before { background: var(--verde); }
 

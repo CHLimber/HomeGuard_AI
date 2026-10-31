@@ -67,6 +67,7 @@ def angulo_torso(p: Persona, conf_min: float) -> float | None:
     dx, dy = caderas - hombros
     if dx == 0 and dy == 0:
         return None
+    # Informe, ecuación del ángulo del torso: θ = atan2(|dy|, |dx|); horizontal si θ < angulo_max_grados
     return math.degrees(math.atan2(abs(dy), abs(dx)))
 
 

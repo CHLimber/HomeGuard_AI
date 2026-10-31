@@ -27,6 +27,9 @@ body.panel.alarma .panel-estado .sub, body.panel.alarma .panel-barra { color: #f
 @keyframes parpadeo { 0% { background: var(--rojo); } 50% { background: var(--rojo-oscuro); } }
 @media (prefers-reduced-motion: reduce) { body.panel.alarma { animation: none; background: var(--rojo); } }
 
+/* Sistema desarmado desde el dashboard: ámbar fijo, sin sirena */
+body.panel.desarmado .panel-estado .rotulo { color: var(--ambar); }
+
 /* Pantalla inicial: armar la alarma (el toque desbloquea el audio) */
 .armar { position: fixed; inset: 0; background: var(--marco); color: #fff; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 22px; text-align: center; padding: 24px; z-index: 10; }

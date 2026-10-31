@@ -3,6 +3,7 @@ from datetime import datetime
 
 import cv2
 import numpy as np
+import pytest
 
 from homeguard.analizador import Analizador
 from homeguard.detectores.base import Zona
@@ -73,3 +74,30 @@ def test_sin_zona_analiza_toda_la_imagen(cfg, videos_sinteticos):
     obs_t, disparos = correr(cfg, leer_video(ruta), verdad(ruta)["fps"], Capa2Falsa(0.8), zonas=())
     assert obs_t[0][1].zona == "toda la imagen"
     assert len(disparos) == 1
+
+
+@pytest.mark.parametrize("modo", ["lut9", "hsv"])
+def test_otros_modos_de_capa1_detectan_la_llama(cfg, videos_sinteticos, modo):
+    """Los modos lut9 (índice de 9 bits) y hsv (inRange) también activan la capa 1 con la llama sintética."""
+    cfg_modo = cfg.model_copy(deep=True)
+    cfg_modo.detectores.fuego.modo_capa1 = modo
+    ruta = videos_sinteticos / "fuego.mp4"
+    obs_t, disparos = correr(cfg_modo, leer_video(ruta), verdad(ruta)["fps"], Capa2Falsa(0.8))
+    umbral = cfg.detectores.fuego.umbral_capa1_pct
+    assert not any(o.detalle["capa1_pct"] >= umbral for t, o in obs_t if t < 3.0)
+    assert len(disparos) == 1
+
+
+def test_lut_desde_archivo(cfg, tmp_path):
+    """lut_archivo carga la tabla del .npy y valida que su tamaño coincida con el modo."""
+    tabla = np.full(512, 255, np.uint8)   # todo es "fuego"
+    ruta = tmp_path / "lut.npy"
+    np.save(ruta, tabla)
+    cfg_arch = cfg.model_copy(deep=True)
+    cfg_arch.detectores.fuego.modo_capa1 = "lut9"
+    cfg_arch.detectores.fuego.lut_archivo = str(ruta)
+    det = DetectorFuego(Modelos())
+    assert np.array_equal(det._tabla(cfg_arch.detectores.fuego), tabla)
+    cfg_arch.detectores.fuego.modo_capa1 = "lut332"
+    with pytest.raises(ValueError):
+        det._tabla(cfg_arch.detectores.fuego)

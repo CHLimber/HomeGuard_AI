@@ -96,6 +96,7 @@ en la base de datos y se aplica encima de `config.yaml`. El botón **Restaurar c
 | `python scripts/evaluar_detector.py --detector fuego --carpeta data/videos_prueba/fuego` | VP/FP/VN/FN con tus videos → `docs/PRUEBAS.md` |
 | `python scripts/reporte_latencias.py` | Latencias medidas en los eventos → `docs/PRUEBAS.md` |
 | `python -m homeguard.preproceso.benchmark` | Benchmark bitwise → `docs/BENCHMARK.md` |
+| `python scripts/generar_tablas_informe.py [--desde AAAA-MM-DD]` | Tablas del informe (benchmark, precisión/recall/F1, latencias) → `docs/informe/` |
 
 ## Tests
 

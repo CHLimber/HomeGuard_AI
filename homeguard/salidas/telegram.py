@@ -136,6 +136,7 @@ class EnviadorTelegram:
                 try:
                     tarea.intentos += 1
                     self.enviar_ahora(tarea)
+                    # Informe, ecuación de latencias: latencia_telegram = t_respuesta_ok − t_det
                     latencia = (time.time() - tarea.t_deteccion) * 1000
                     self.sin_conexion = False
                     self.ultimo_error = None

@@ -1,6 +1,7 @@
 """Lecturas de la BD que comparten el sistema en vivo y los scripts (evaluador, reportes)."""
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,10 +13,28 @@ from homeguard.db import modelos as m
 from homeguard.db.sesion import BaseDatos
 from homeguard.detectores.base import Zona
 
+# Claves de la tabla `config` que guardan estado del sistema y no son overrides de config.yaml.
+# Empiezan con "_" para que nunca se validen contra Config ni se borren al restaurar config.yaml.
+PREFIJO_INTERNO = "_"
+CLAVE_ARMADO = "_sistema.armado"
+
 
 def leer_overrides(bd: BaseDatos) -> dict[str, Any]:
     with bd.sesion() as s:
-        return {o.clave: o.valor for o in s.scalars(select(m.ConfigOverride))}
+        return {o.clave: o.valor for o in s.scalars(select(m.ConfigOverride))
+                if not o.clave.startswith(PREFIJO_INTERNO)}
+
+
+def leer_armado(bd: BaseDatos) -> bool:
+    """Si el sistema está armado. Sin dato guardado, arranca armado."""
+    with bd.sesion() as s:
+        fila = s.get(m.ConfigOverride, CLAVE_ARMADO)
+        return True if fila is None else bool(fila.valor)
+
+
+def guardar_armado(bd: BaseDatos, armado: bool) -> None:
+    with bd.sesion() as s:
+        s.merge(m.ConfigOverride(clave=CLAVE_ARMADO, valor=armado))
 
 
 def config_efectiva(bd: BaseDatos, ruta_config: Path, demo: bool = False) -> tuple[Config, str | None]:
@@ -41,3 +60,12 @@ def embeddings_residentes(bd: BaseDatos) -> tuple[np.ndarray, list[str]]:
     if not filas:
         return np.zeros((0, 128), np.float32), []
     return np.stack([np.frombuffer(v, dtype=np.float32) for v, _ in filas]), [n for _, n in filas]
+
+
+def eventos(bd: BaseDatos, desde: datetime | None = None) -> list[m.Evento]:
+    """Eventos registrados (opcionalmente desde una fecha), del más viejo al más nuevo."""
+    q = select(m.Evento).order_by(m.Evento.creado_en)
+    if desde is not None:
+        q = q.where(m.Evento.creado_en >= desde)
+    with bd.sesion() as s:
+        return list(s.scalars(q))

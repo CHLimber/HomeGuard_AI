@@ -18,13 +18,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import select
-
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
 from homeguard.config import cargar_config, ruta_abs  # noqa: E402
-from homeguard.db import modelos as m  # noqa: E402
+from homeguard.db import consultas  # noqa: E402
 from homeguard.db.sesion import BaseDatos  # noqa: E402
 from scripts.evaluar_detector import RUTA_PRUEBAS, escribir_en_pruebas  # noqa: E402
 
@@ -36,12 +34,21 @@ def percentil(valores: list[float], p: float) -> float:
     return v[i] if i + 1 >= len(v) else v[i] + (v[i + 1] - v[i]) * (k - i)
 
 
-def fila(nombre: str, valores: list[float], objetivo: float) -> str:
+def resumen(valores: list[float], objetivo: float) -> dict[str, float] | None:
+    """Promedio, mediana, P95, máximo y % de mediciones dentro del objetivo (None si no hay mediciones)."""
     if not valores:
+        return None
+    return {"n": len(valores), "promedio": statistics.mean(valores), "mediana": statistics.median(valores),
+            "p95": percentil(valores, 0.95), "maximo": max(valores),
+            "pct_objetivo": sum(v <= objetivo for v in valores) / len(valores) * 100}
+
+
+def fila(nombre: str, valores: list[float], objetivo: float) -> str:
+    r = resumen(valores, objetivo)
+    if r is None:
         return f"| {nombre} | 0 | — | — | — | — | — |"
-    bajo = sum(v <= objetivo for v in valores) / len(valores) * 100
-    return (f"| {nombre} | {len(valores)} | {statistics.mean(valores):.0f} | {statistics.median(valores):.0f} | "
-            f"{percentil(valores, 0.95):.0f} | {max(valores):.0f} | {bajo:.0f} % |")
+    return (f"| {nombre} | {r['n']} | {r['promedio']:.0f} | {r['mediana']:.0f} | "
+            f"{r['p95']:.0f} | {r['maximo']:.0f} | {r['pct_objetivo']:.0f} % |")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -58,11 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = cargar_config(demo=args.demo)
     objetivo = cfg.panel.latencia_objetivo_ms
     bd = BaseDatos(args.bd or ruta_abs(cfg.general.base_datos))
-    q = select(m.Evento)
-    if args.desde:
-        q = q.where(m.Evento.creado_en >= datetime.fromisoformat(args.desde))
-    with bd.sesion() as s:
-        eventos = list(s.scalars(q))
+    eventos = consultas.eventos(bd, datetime.fromisoformat(args.desde) if args.desde else None)
     bd.cerrar()
 
     lineas = [

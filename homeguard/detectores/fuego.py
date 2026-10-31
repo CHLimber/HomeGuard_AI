@@ -1,8 +1,10 @@
 """Anomalía 3: fuego / humo, en dos capas.
 
 Capa 1 (barata, bitwise, todos los frames):
-    color_fuego (índice RGB332 + LUT) AND movimiento (XOR de cuantizados) AND zona
+    color_fuego AND movimiento (XOR de cuantizados) AND zona
     -> % de píxeles de la zona. Una llama real parpadea; un objeto naranja quieto no.
+    color_fuego según `modo_capa1`: "lut332" (índice de 8 bits + cv2.LUT), "lut9" (índice
+    de 9 bits del informe + tabla de 512) o "hsv" (cv2.inRange, sin bits, para comparar).
 Capa 2 (cara, solo si la capa 1 supera `umbral_capa1_pct`):
     YOLOv8n fire-smoke (rabahdev/fire-smoke-yolov8n, 0=smoke, 1=fire).
 La observación es positiva si capa 1 activa Y capa 2 con confianza > `confianza_capa2`.
@@ -17,6 +19,7 @@ from typing import Any
 
 import numpy as np
 
+from homeguard.config import ruta_abs
 from homeguard.detectores.base import Anotacion, Contexto, Detector, PosibleEvento, zona_global
 from homeguard.detectores.modelos import Modelos
 from homeguard.preproceso import bitwise
@@ -38,12 +41,33 @@ class DetectorFuego(Detector):
         self._clave_lut: tuple | None = None
         self.llamadas_capa2 = 0  # para el benchmark/tests: cuántas veces corrió el YOLO
 
-    def _tabla(self, cfg) -> np.ndarray:
-        clave = (cfg.hue_min, cfg.hue_max, cfg.sat_min, cfg.val_min)
+    def _tabla(self, cfg) -> np.ndarray | None:
+        """Tabla de la capa 1 según `modo_capa1` (None en modo "hsv"); se recalcula solo si cambia la config."""
+        if cfg.modo_capa1 == "hsv":
+            return None
+        rangos = (cfg.hue_min, cfg.hue_max, cfg.sat_min, cfg.val_min)
+        clave = (cfg.modo_capa1, cfg.lut_archivo, rangos)
         if clave != self._clave_lut:
-            self._lut = bitwise.construir_lut_fuego(*clave)
-            self._clave_lut = clave
+            tamano = 512 if cfg.modo_capa1 == "lut9" else 256
+            if cfg.lut_archivo:
+                lut = np.load(ruta_abs(cfg.lut_archivo)).astype(np.uint8)
+                if lut.shape != (tamano,):
+                    raise ValueError(f"{cfg.lut_archivo} tiene {lut.size} entradas; modo {cfg.modo_capa1} "
+                                     f"necesita {tamano} (regenerala con scripts/generar_lut_fuego.py)")
+            elif cfg.modo_capa1 == "lut9":
+                lut = bitwise.construir_lut_fuego_9bits(*rangos)
+            else:
+                lut = bitwise.construir_lut_fuego(*rangos)
+            self._lut, self._clave_lut = lut, clave
         return self._lut
+
+    @staticmethod
+    def _mascara_color(bgr: np.ndarray, cfg, lut: np.ndarray | None) -> np.ndarray:
+        if cfg.modo_capa1 == "lut9":
+            return bitwise.mascara_color_lut9(bgr, lut)
+        if cfg.modo_capa1 == "hsv":
+            return bitwise.mascara_color_hsv(bgr, cfg.hue_min, cfg.hue_max, cfg.sat_min, cfg.val_min)
+        return bitwise.mascara_color_lut(bgr, lut)
 
     def _yolo_fuego(self, frame: np.ndarray, cfg_global) -> list[Deteccion]:
         modelo = self.modelos.yolo(cfg_global.detectores.fuego.modelo)
@@ -63,7 +87,7 @@ class DetectorFuego(Detector):
         for zona in zonas:
             x0, y0, x1, y1 = bitwise.bbox_poligono(zona.puntos_px(ctx.ancho, ctx.alto), ctx.alto, ctx.ancho)
             roi = ctx.mascara_zona(zona)[y0:y1, x0:x1]
-            color = bitwise.mascara_color_lut(frame[y0:y1, x0:x1], lut)
+            color = self._mascara_color(frame[y0:y1, x0:x1], cfg, lut)
             if ctx.mascara_movimiento is None:  # primer frame: todavía no hay movimiento
                 pct_color_mov = 0.0
             else:
@@ -71,6 +95,7 @@ class DetectorFuego(Detector):
                 fuego_y_mov = bitwise.combinar_mascaras(color, mov, roi, modo="and")
                 pct_color_mov = bitwise.porcentaje_activos(fuego_y_mov, roi)
             pct_color = bitwise.porcentaje_activos(color, roi)
+            # Informe, regla de fuego: (color AND movimiento AND roi) > umbral_capa1 y luego capa 2 YOLO en N de M
             capa1 = pct_color_mov >= cfg.umbral_capa1_pct
 
             conf2, mejor = 0.0, None

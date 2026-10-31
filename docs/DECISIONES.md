@@ -72,9 +72,12 @@ funcione en una demo en vivo**.
 
 ## Bitwise
 
-25. **Índice de color RGB332 (8 bits) + `cv2.LUT`** en lugar de un índice de 9 bits indexado con NumPy. La primera
-    versión (3 bits por canal → 512 colores, uint16) era la parte más lenta del preprocesamiento (~2,4 ms). Con
-    8 bits se puede usar la LUT nativa de OpenCV.
+25. **Capa 1 de fuego con el índice de 9 bits del informe (`modo_capa1: lut9`) por defecto.** Es la ecuación del
+    índice de color del informe: `((R>>5)<<6)|((G>>5)<<3)|(B>>5)` en uint16 y una tabla de 512 indexada con NumPy.
+    Quedan como alternativas configurables RGB332 (8 bits + `cv2.LUT`) y HSV (`cv2.inRange`). Medido en
+    640×480: lut9 ≈ 3,2 ms, lut332 ≈ 1,0 ms, hsv ≈ 0,5 ms. Los 3,2 ms entran en el presupuesto por frame, y se
+    eligió coincidir con el informe. La tabla se puede generar a partir de muestras con
+    `scripts/generar_lut_fuego.py` (`lut_archivo`).
 26. **Cuantización con una AND (`x & 0xF0`) en lugar de `(x >> 4) << 4`.** Son equivalentes (lo verifica un test para
     todos los valores de `bits`), y la AND es una sola operación. La versión con desplazamientos queda como función
     didáctica.
@@ -116,3 +119,40 @@ funcione en una demo en vivo**.
 38. **El evaluador (`evaluar_detector.py`) analiza los videos al ritmo de `fps_objetivo`** (salteando frames), porque
     las reglas cuentan frames analizados. Usa una hora fija de madrugada e ignora el horario permitido de la puerta:
     mide la detección, no el horario.
+
+## Coherencia con el informe (Anexo C) y agregados del contexto v2
+
+39. **Valores por defecto alineados con el Anexo C** (31/10/2026): cooldown 30 s para las 5 anomalías (antes 60 y
+    120 en caídas), score de YuNet 0,90 (antes 0,70), inmovilidad en piscina 8 s (antes 10), umbral de la capa 1 de
+    fuego 0,5 % (antes 0,30), confianza de keypoints 0,50 (antes 0,30), umbral de diferencia de la puerta 30 (antes
+    35), timeout de Telegram 5 s (antes 10). Se ajustan en la feria con la página Calibración. Si un valor
+    calibrado termina distinto del informe, se anota acá.
+40. **Diferencias con el Anexo C que se mantienen** (son cambios de forma o de unidad, no de criterio):
+    - Votación N/M por anomalía en lugar de un único 3 de 5 (decisiones 14 y 15).
+    - Inmovilidad en piscina en px del frame de proceso (15 px ≈ 0,023 del ancho a 640 px) en lugar de normalizada (0,02).
+    - Descenso de la caída relativo a la altura de la persona (0,25) en lugar de la altura del frame (0,20):
+      no depende de la distancia a la cámara.
+    - Porcentaje de la puerta en % (25,0) en lugar de fracción (0,25).
+    - Horario de la puerta vacío = vigilar siempre (decisión 12).
+    - Telegram reintenta sin límite con espera exponencial y descarta eventos de más de 120 min, en lugar de 5 reintentos.
+    - Sin clave `zona_horaria`: los horarios usan la hora local de la laptop. Hay que configurar Windows en
+      "La Paz" (UTC−4, sin horario de verano). En Windows, `zoneinfo` necesita el paquete `tzdata`, y no se agregó
+      una dependencia solo para esto.
+41. **Desarmar el sistema** (sección 6.3 del contexto): el motor ignora las observaciones y el estado queda en 0,
+    pero los detectores siguen corriendo para que el video y Calibración funcionen. Al armar o desarmar se vacían
+    las ventanas de votación. Se persiste como `_sistema.armado` en la tabla `config`. Las claves que empiezan con
+    `_` son internas: no se validan contra `Config` y "Restaurar config.yaml" no las borra.
+42. **P(falsa alarma) N de M** (`probabilidad_falsa_alarma` en `reglas/motor.py`): se calcula en el servidor
+    (`/api/falsa-alarma`) y no se replica en JS. El `p` por defecto es 0,05 y se edita en Calibración.
+43. **Tablas del informe** (`scripts/generar_tablas_informe.py`): P/R/F1 se leen de la fila de resumen que
+    `evaluar_detector.py` escribe en PRUEBAS.md, porque no hay otra fuente estructurada. El % de latencias cuenta
+    los eventos ≤ objetivo, igual que `reporte_latencias.py`. Sin datos escribe "Por medir".
+44. **Fase 7: SIMD en C opcional, cargado con ctypes.** AVX2 se compila con `__attribute__((target("avx2")))` y la
+    CPU se detecta al ejecutar, así una sola DLL sirve en cualquier x86-64 (con SSE2 como mínimo). El bucle
+    escalar se compila sin autovectorizar para que sirva de línea base. La variante E del benchmark solo aparece si
+    la librería está compilada, y su resultado tiene que ser idéntico al de D. En la PC de desarrollo no había
+    compilador: no se publican tiempos ni ensamblador hasta que el grupo compile (GUIA_GRUPO, sección 11).
+45. **Cada fórmula del informe lleva un comentario `# Informe, ecuación de …`** en el código: similitud coseno,
+    ángulo del torso, proporción de píxeles, byte de estado, regla de fuego, binomial N de M, P/R/F1, latencias,
+    tamaño de fotograma, índice de color e instrucciones SIMD. Así el jurado puede ir del Word al código. La IoU
+    no aparece en el código propio porque la calcula ByteTrack internamente.

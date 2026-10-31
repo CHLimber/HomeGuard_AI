@@ -12,6 +12,12 @@
 
 <div class="rejilla">
   <section class="tarjeta">
+    <h2>Sistema <span class="etiqueta" id="etq-armado">…</span></h2>
+    <p style="margin-top:0">Desarmado, HomeGuard sigue mostrando el video y los valores de calibración, pero el motor de
+      reglas no confirma ninguna alarma: no suena el panel ni se manda Telegram. Se recuerda aunque se reinicie el sistema.</p>
+    <button id="btn-armado">…</button>
+  </section>
+  <section class="tarjeta">
     <h2>Cámaras</h2>
     <p style="margin-top:0;font-size:.9rem">Fuente: <span class="datos">0</span> = webcam de la laptop ·
       IP Webcam: <span class="datos">http://IP:8080/video</span> · DroidCam: <span class="datos">http://IP:4747/video</span></p>
@@ -135,6 +141,26 @@ document.getElementById("btn-telegram").onclick = async () => {
   const r = await api("/api/telegram/probar", { method: "POST" });
   document.getElementById("msg-telegram").innerHTML = `<div class="mensaje ${r.ok ? "ok" : "error"}">${escapar(r.mensaje)}</div>`;
 };
+function pintarArmado(armado) {
+  const etq = document.getElementById("etq-armado");
+  etq.textContent = armado ? "armado" : "desarmado";
+  etq.className = "etiqueta " + (armado ? "ok" : "aviso");
+  const btn = document.getElementById("btn-armado");
+  btn.textContent = armado ? "Desarmar sistema" : "Armar sistema";
+  btn.className = armado ? "secundario" : "";
+  btn.dataset.armado = armado;
+}
+alArmado.push(pintarArmado);
+document.getElementById("btn-armado").onclick = async () => {
+  const armar = document.getElementById("btn-armado").dataset.armado !== "true";
+  if (!armar && !confirm("¿Desarmar el sistema? No va a sonar ninguna alarma hasta que lo vuelvas a armar.")) return;
+  try {
+    await fijarArmado(armar);
+    mensaje(armar ? "Sistema armado." : "Sistema desarmado: no suena ninguna alarma.");
+  } catch (e) { mensaje(e.message, false); }
+};
+api("/api/armado").then(r => actualizarArmado(r.armado)).then(() => pintarArmado(sistemaArmado));
+
 cargar();
 cargarCamaras();
 </script>

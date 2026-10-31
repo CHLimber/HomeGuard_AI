@@ -121,6 +121,7 @@ class Pipeline:
             "tipo": "telemetria",
             "estado": s.motor.estado,
             "activos": s.motor.activos,
+            "armado": s.motor.armado,
             "camaras": camaras,
             "calibracion": self.calibracion,
             "ms_detectores": {k: round(v, 1) for k, v in self.analizador.tiempos_ms.items()},
@@ -137,4 +138,5 @@ class Pipeline:
         s = self.sistema
         s.ws.emitir_desde_hilo("estado", self.telemetria())
         # el panel recibe el estado periódicamente: sirve de latido y corrige mensajes perdidos
-        s.ws.emitir_desde_hilo("alarma", {"tipo": "estado", "estado": s.motor.estado})
+        s.ws.emitir_desde_hilo("alarma", {"tipo": "estado", "estado": s.motor.estado,
+                                          "armado": s.motor.armado})

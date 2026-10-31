@@ -16,6 +16,8 @@ from sqlalchemy import select
 
 from homeguard.config import RUTA_CONFIG, TIPOS_ZONA, aplanar, leer_comentarios, ruta_abs
 from homeguard.db import modelos as m
+from homeguard.reglas.estado import BIT_POR_TIPO
+from homeguard.reglas.motor import probabilidad_falsa_alarma
 
 if TYPE_CHECKING:
     from homeguard.sistema import Sistema
@@ -37,6 +39,35 @@ def estado(request: Request) -> dict:
 @router.post("/silenciar")
 def silenciar(request: Request) -> dict:
     return {"estado": _sis(request).silenciar()}
+
+
+class Armado(BaseModel):
+    armado: bool
+
+
+@router.get("/armado")
+def obtener_armado(request: Request) -> dict:
+    return {"armado": _sis(request).motor.armado}
+
+
+@router.post("/armado")
+def fijar_armado(datos: Armado, request: Request) -> dict:
+    """Arma o desarma el sistema. Desarmado: se sigue analizando (video y calibración) pero no suena nada."""
+    return {"armado": _sis(request).fijar_armado(datos.armado)}
+
+
+@router.get("/falsa-alarma")
+def falsa_alarma(request: Request, p: float = 0.05) -> dict:
+    """P(falsa alarma) de la votación N de M de cada anomalía, si un frame da falso positivo con probabilidad p."""
+    if not 0.0 <= p <= 1.0:
+        raise HTTPException(400, "p tiene que estar entre 0 y 1")
+    alarmas = _sis(request).config.alarmas
+    anomalias = {}
+    for tipo in BIT_POR_TIPO:
+        regla = getattr(alarmas, tipo)
+        anomalias[tipo] = {"n": regla.votos_n, "m": regla.votos_m,
+                           "probabilidad": probabilidad_falsa_alarma(p, regla.votos_n, regla.votos_m)}
+    return {"p": p, "anomalias": anomalias}
 
 
 @router.get("/telemetria")

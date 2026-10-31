@@ -111,7 +111,7 @@ class CfgRostros(_Base):
     modelo_detector: str
     modelo_reconocedor: str
     umbral_similitud: float = Field(0.363, ge=-1, le=1)
-    confianza_rostro: float = Field(0.7, ge=0, le=1)
+    confianza_rostro: float = Field(0.9, ge=0, le=1)
     nms: float = Field(0.3, ge=0, le=1)
     tamano_min_rostro_px: int = Field(40, ge=0)
     usar_resolucion_original: bool = True
@@ -121,7 +121,7 @@ class CfgRostros(_Base):
 class CfgPiscina(_Base):
     tiempo_sin_supervisor_s: float = Field(2.0, ge=0)
     inmovil_desplazamiento_px: float = Field(15, ge=0)
-    inmovil_tiempo_s: float = Field(10.0, gt=0)
+    inmovil_tiempo_s: float = Field(8.0, gt=0)
     olvidar_track_s: float = Field(3.0, gt=0)
 
 
@@ -131,7 +131,9 @@ class CfgFuego(_Base):
     hue_max: int = Field(35, ge=0, le=180)
     sat_min: int = Field(100, ge=0, le=255)
     val_min: int = Field(150, ge=0, le=255)
-    umbral_capa1_pct: float = Field(0.3, ge=0, le=100)
+    modo_capa1: Literal["lut332", "lut9", "hsv"] = "lut9"
+    lut_archivo: str = ""
+    umbral_capa1_pct: float = Field(0.5, ge=0, le=100)
     confianza_capa2: float = Field(0.5, ge=0, le=1)
     clases_capa2: list[int] = Field(default_factory=lambda: [0, 1])
 
@@ -140,7 +142,7 @@ class CfgCaidas(_Base):
     modelo: str
     confianza: float = Field(0.4, ge=0, le=1)
     cada_n_frames: int = Field(2, ge=1)
-    confianza_keypoint: float = Field(0.3, ge=0, le=1)
+    confianza_keypoint: float = Field(0.5, ge=0, le=1)
     ratio_min: float = Field(1.4, gt=0)
     angulo_max_grados: float = Field(45, ge=0, le=90)
     ventana_descenso_s: float = Field(1.0, gt=0)
@@ -153,7 +155,7 @@ class CfgCaidas(_Base):
 
 class CfgPuerta(_Base):
     metodo: Literal["absdiff", "xor"] = "absdiff"
-    umbral_diferencia: int = Field(35, ge=1, le=255)
+    umbral_diferencia: int = Field(30, ge=1, le=255)
     umbral_binarizacion: int = Field(0, ge=0, le=255)
     desenfoque_px: int = Field(5, ge=0)
     porcentaje_min: float = Field(25.0, ge=0, le=100)
@@ -182,7 +184,7 @@ class CfgTelegram(_Base):
     activo: bool = True
     ancho_foto: int = Field(640, ge=160)
     calidad_jpeg: int = Field(70, ge=10, le=100)
-    timeout_s: float = Field(10, gt=0)
+    timeout_s: float = Field(5, gt=0)
     reintento_max_s: float = Field(60, gt=0)
     descartar_tras_min: float = Field(120, gt=0)
 

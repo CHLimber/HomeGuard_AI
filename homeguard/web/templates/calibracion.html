@@ -11,6 +11,16 @@
   aparecen y ajustá los umbrales en Configuración. Los valores en <b style="color:var(--rojo)">rojo</b> superan su umbral.
 </p>
 <div class="rejilla" id="calibracion"><p class="vacio">Esperando datos de las cámaras…</p></div>
+<h2 style="margin-top:22px">Probabilidad de falsa alarma (votación N de M)</h2>
+<p style="max-width:62em;margin-top:0">
+  Si un frame da un falso positivo con probabilidad <i>p</i> (independiente de los demás), la alarma se confirma por error
+  con probabilidad P = Σ<sub>k=N</sub><sup>M</sup> C(M,k)·p<sup>k</sup>·(1−p)<sup>M−k</sup>. N y M son los de Configuración.
+</p>
+<section class="tarjeta" style="max-width:40em">
+  <label for="p-falso" style="margin:0">p (falso positivo por frame)</label>
+  <input type="number" id="p-falso" min="0" max="1" step="0.01" value="0.05" style="width:110px">
+  <table id="falsa-alarma" style="margin-top:10px"></table>
+</section>
 <h2 style="margin-top:22px">Tiempo por detector</h2>
 <div class="metricas" id="tiempos"></div>
 {% endblock %}
@@ -54,6 +64,29 @@ function bloque(detector, datos) {
     `<h3 style="margin-top:12px">${NOMBRES[detector] || detector} <span class="etiqueta">${escapar(zona)}</span></h3>
      <table><tr><th>Valor</th><th>Ahora</th><th>Umbral</th></tr>${filas(d)}</table>`).join("");
 }
+
+const NOMBRES_ALARMA = { intrusion: "Intrusión", piscina: "Piscina", fuego: "Fuego / humo", caida: "Caída", puerta: "Puerta" };
+
+function porcentaje(x) {
+  if (x === 0) return "0 %";
+  if (x < 1e-4) return x.toExponential(2);
+  return (x * 100).toLocaleString("es", { maximumSignificantDigits: 3 }) + " %";
+}
+
+async function cargarFalsaAlarma() {
+  const tabla = document.getElementById("falsa-alarma");
+  const p = Number(document.getElementById("p-falso").value);
+  try {
+    const r = await api(`/api/falsa-alarma?p=${encodeURIComponent(p)}`);
+    tabla.innerHTML = `<tr><th>Anomalía</th><th>N de M</th><th>P(falsa alarma)</th></tr>` +
+      Object.entries(r.anomalias).map(([tipo, a]) => `<tr><td>${NOMBRES_ALARMA[tipo] || tipo}</td>
+        <td class="datos">${a.n} de ${a.m}</td><td class="datos">${porcentaje(a.probabilidad)}</td></tr>`).join("");
+  } catch (e) {
+    tabla.innerHTML = `<tr><td class="vacio">${escapar(e.message)}</td></tr>`;
+  }
+}
+document.getElementById("p-falso").addEventListener("input", cargarFalsaAlarma);
+cargarFalsaAlarma();
 
 alTelemetria.push(t => {
   const cont = document.getElementById("calibracion");

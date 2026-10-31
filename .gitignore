@@ -14,3 +14,14 @@ data/videos_prueba/**/*.json
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Fase 7: librería nativa compilada y ensamblador generado
+nativo/*.dll
+nativo/*.so
+nativo/*.dylib
+nativo/*.o
+nativo/*.obj
+nativo/*.lib
+nativo/*.exp
+nativo/*.s
+nativo/*.asm

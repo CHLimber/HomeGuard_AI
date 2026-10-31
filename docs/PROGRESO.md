@@ -9,6 +9,8 @@
 | 4 — Dashboard | ✅ hecha |
 | 5 — Robustez | ✅ hecha |
 | 6 — Documentación final | ✅ hecha |
+| Revisión contra el contexto v2 (31/10/2026) | ✅ hecha |
+| 7 — SIMD en C (opcional) | ⚠️ código listo, sin compilar (no hay compilador en la PC de desarrollo) |
 
 ## Fase 0
 - Python 3.12.10 en `.venv` (no había 3.11 instalado; 3.12 está soportado por ultralytics/torch).
@@ -73,6 +75,22 @@
   secuencia de una alarma, modelo de datos), DECISIONES (38 decisiones con su porqué), PRUEBAS (protocolo +
   secciones que llenan los scripts, sin resultados inventados), GUIA_GRUPO (pasos manuales), CLAUDE.md completo.
 
+## Revisión contra Contexto_CaludeCode.md v2 (31/10/2026)
+- Armar/desarmar el sistema desde el dashboard, con persistencia y aviso en el panel (sección 6.3).
+- P(falsa alarma) N de M por anomalía en Calibración (sección 6.1).
+- Índice de color de 9 bits del informe como default de la capa 1 (`modo_capa1: lut9 | lut332 | hsv`) y
+  `scripts/generar_lut_fuego.py` (`lut_archivo`).
+- Valores por defecto de `config.yaml` alineados con el Anexo C. Las diferencias de unidad están documentadas
+  (DECISIONES 39–40).
+- `scripts/generar_tablas_informe.py` → `docs/informe/` (benchmark, P/R/F1, latencias; "Por medir" si no hay datos).
+- GUIA_GRUPO: capturas del Anexo J y cómo compilar la Fase 7.
+- Comentarios `# Informe, ecuación de …` en cada fórmula.
+
+## Fase 7 (opcional)
+- `nativo/bitwise_simd.c` (XOR/AND con SSE2 y AVX2, detección de CPU, fallback escalar), `compilar.bat`/`.sh`,
+  `homeguard/preproceso/nativo.py` (ctypes), variante E del benchmark y `tests/test_nativo.py`.
+- Sin compilar ni medir: en la PC de desarrollo no hay gcc ni cl. Los tests de la DLL real se saltan.
+
 ## Pendiente (lo hace el grupo, ver GUIA_GRUPO.md)
 - `.env` con TELEGRAM_TOKEN y TELEGRAM_CHAT_ID → `scripts/probar_telegram.py`.
 - URLs de los celulares (IP Webcam/DroidCam) y activarlos en config.yaml o en el dashboard.
@@ -82,6 +100,8 @@
 - Sesión con panel + Telegram → `scripts/reporte_latencias.py`.
 - Calibrar umbrales con la página Calibración, en la casa y en la feria.
 - Re-ejecutar el benchmark en la laptop de la feria.
+- (Opcional) Compilar `nativo/` y pegar el ensamblador y la fila E en BITWISE.md.
+- Correr `scripts/generar_tablas_informe.py` y sacar las capturas del Anexo J.
 
 ## Problemas conocidos
 - El video sintético de fuego (elipses naranjas) activa la capa 1 pero el YOLO fire-smoke no lo reconoce como

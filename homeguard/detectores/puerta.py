@@ -124,6 +124,7 @@ class DetectorPuerta(Detector):
             else:
                 _, cambio = cv2.threshold(cv2.absdiff(recorte, estado.referencia), cfg.umbral_diferencia, 255,
                                           cv2.THRESH_BINARY)
+            # Informe, ecuación de proporción de píxeles cambiados de la puerta
             porcentaje = bitwise.porcentaje_activos(cambio, roi)
 
             if porcentaje >= cfg.porcentaje_min:

@@ -141,6 +141,20 @@ def indice_rgb332(bgr: np.ndarray) -> np.ndarray:
                           np.right_shift(b, 6))
 
 
+def _lut_desde_hsv(r: np.ndarray, g: np.ndarray, b: np.ndarray,
+                   hue_min: int, hue_max: int, sat_min: int, val_min: int) -> np.ndarray:
+    """Evalúa la regla HSV sobre una lista de colores (uno por entrada de la tabla) -> 0/255."""
+    colores = np.stack([b, g, r], axis=-1).astype(np.uint8).reshape(1, -1, 3)
+    hsv = cv2.cvtColor(colores, cv2.COLOR_BGR2HSV).reshape(-1, 3)
+    h, sat, val = hsv[:, 0], hsv[:, 1], hsv[:, 2]
+    if hue_min <= hue_max:
+        tono_ok = (h >= hue_min) & (h <= hue_max)
+    else:  # rango que da la vuelta (ej. 170..10)
+        tono_ok = (h >= hue_min) | (h <= hue_max)
+    es_fuego = tono_ok & (sat >= sat_min) & (val >= val_min)
+    return np.where(es_fuego, 255, 0).astype(np.uint8)
+
+
 def construir_lut_fuego(hue_min: int, hue_max: int, sat_min: int, val_min: int) -> np.ndarray:
     """Precalcula, para cada uno de los 256 colores RGB332, si es "color fuego" (255) o no (0).
 
@@ -151,20 +165,64 @@ def construir_lut_fuego(hue_min: int, hue_max: int, sat_min: int, val_min: int) 
     r = (idx & 0xE0) + 16                 # bits 7-5 -> centro de la celda de 32 valores
     g = ((idx & 0x1C) << 3) + 16          # bits 4-2
     b = ((idx & 0x03) << 6) + 32          # bits 1-0 -> celda de 64 valores
-    colores = np.stack([b, g, r], axis=-1).astype(np.uint8).reshape(1, 256, 3)
-    hsv = cv2.cvtColor(colores, cv2.COLOR_BGR2HSV).reshape(256, 3)
-    h, sat, val = hsv[:, 0], hsv[:, 1], hsv[:, 2]
-    if hue_min <= hue_max:
-        tono_ok = (h >= hue_min) & (h <= hue_max)
-    else:  # rango que da la vuelta (ej. 170..10)
-        tono_ok = (h >= hue_min) | (h <= hue_max)
-    es_fuego = tono_ok & (sat >= sat_min) & (val >= val_min)
-    return np.where(es_fuego, 255, 0).astype(np.uint8)
+    return _lut_desde_hsv(r, g, b, hue_min, hue_max, sat_min, val_min)
 
 
 def mascara_color_lut(bgr: np.ndarray, lut: np.ndarray) -> Mascara:
     """Clasifica cada píxel con la tabla: una sola búsqueda vectorizada."""
     return cv2.LUT(indice_rgb332(bgr), lut)
+
+
+# --- Variante del informe: índice de 9 bits (3 bits por canal) + tabla de 512 entradas ---
+
+def indice_rgb9(bgr: np.ndarray) -> np.ndarray:
+    """Índice de color de 9 bits del informe (ecuación del índice de color, sección 5.3):
+
+        idx = ((R >> 5) << 6) | ((G >> 5) << 3) | (B >> 5)          -> 0..511
+               RRR_000_000       000_GGG_000       000_000_BBB
+
+    OpenCV entrega los canales en orden B, G, R: por eso se separan como (b, g, r).
+    El índice ocupa 9 bits y no cabe en un byte: se calcula en uint16, porque en uint8
+    `(R >> 5) << 6` perdería el bit más alto (ej. 7 << 6 = 448 > 255).
+    Ej. naranja BGR (0, 140, 255):
+        R >> 5 = 7 -> 7 << 6 = 448 ; G >> 5 = 4 -> 4 << 3 = 32 ; B >> 5 = 0
+        idx = 448 | 32 | 0 = 480 = 0b111_100_000
+    """
+    b, g, r = cv2.split(bgr)
+    r16 = np.right_shift(r, 5).astype(np.uint16)
+    g16 = np.right_shift(g, 5).astype(np.uint16)
+    b16 = np.right_shift(b, 5).astype(np.uint16)
+    return np.left_shift(r16, 6) | np.left_shift(g16, 3) | b16
+
+
+def construir_lut_fuego_9bits(hue_min: int, hue_max: int, sat_min: int, val_min: int) -> np.ndarray:
+    """Tabla de 512 entradas (una por índice de 9 bits): 255 = "color fuego", 0 = no.
+
+    Es la tabla booleana del informe guardada como 0/255 para que el resultado de
+    `lut[idx]` ya sea una máscara combinable con AND/OR. Se evalúa la regla HSV
+    sobre el color central de cada celda de 32×32×32 valores.
+    Ej. entrada 480 = 0b111_100_000 -> centro (R, G, B) = (240, 144, 16): naranja -> 255.
+    """
+    idx = np.arange(512, dtype=np.uint16)
+    r = ((idx >> 6) & 0x7) * 32 + 16      # bits 8-6 -> centro de la celda de 32 valores
+    g = ((idx >> 3) & 0x7) * 32 + 16      # bits 5-3
+    b = (idx & 0x7) * 32 + 16             # bits 2-0
+    return _lut_desde_hsv(r, g, b, hue_min, hue_max, sat_min, val_min)
+
+
+def mascara_color_lut9(bgr: np.ndarray, lut512: np.ndarray) -> Mascara:
+    """Máscara = lut[idx]: indexación vectorizada de NumPy (cv2.LUT solo acepta tablas de 256)."""
+    return lut512[indice_rgb9(bgr)]
+
+
+def mascara_color_hsv(bgr: np.ndarray, hue_min: int, hue_max: int, sat_min: int, val_min: int) -> Mascara:
+    """Alternativa clásica sin bits: conversión a HSV + cv2.inRange (para comparar con la LUT)."""
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+    if hue_min <= hue_max:
+        return cv2.inRange(hsv, (hue_min, sat_min, val_min), (hue_max, 255, 255))
+    # rango de tono que da la vuelta (ej. 170..10): unión de los dos tramos
+    return cv2.bitwise_or(cv2.inRange(hsv, (hue_min, sat_min, val_min), (180, 255, 255)),
+                          cv2.inRange(hsv, (0, sat_min, val_min), (hue_max, 255, 255)))
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +237,7 @@ def porcentaje_activos(mascara: Mascara, roi: Mascara | None = None) -> float:
     else:
         total = cv2.countNonZero(roi)
         activos = cv2.countNonZero(cv2.bitwise_and(mascara, roi))
+    # Informe, ecuación de proporción de píxeles: countNonZero(máscara AND roi) / countNonZero(roi)
     return 100.0 * activos / total if total else 0.0
 
 

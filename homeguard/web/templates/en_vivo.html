@@ -2,7 +2,7 @@
 {% block titulo %}En vivo{% endblock %}
 {% block contenido %}
 <div class="cabecera">
-  <h1>En vivo</h1>
+  <h1>En vivo <span class="etiqueta" id="etq-armado">…</span></h1>
   <div class="metricas">
     <div><b id="m-cpu">—</b><span>CPU del sistema</span></div>
     <div><b id="m-cpu-proc">—</b><span>CPU de HomeGuard</span></div>
@@ -30,6 +30,11 @@
 <script>
 const semaforo = document.getElementById("semaforo");
 dibujarLamparas(semaforo);
+alArmado.push(armado => {
+  const etq = document.getElementById("etq-armado");
+  etq.textContent = armado ? "sistema armado" : "sistema desarmado";
+  etq.className = "etiqueta " + (armado ? "ok" : "aviso");
+});
 alTelemetria.push(t => {
   pintarLamparas(semaforo, t.estado, t.activos);
   document.getElementById("m-cpu").textContent = t.cpu_sistema.toFixed(0) + " %";

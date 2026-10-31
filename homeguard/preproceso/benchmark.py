@@ -9,6 +9,8 @@ Variantes:
   B2. OpenCV clásico con ROI: lo mismo que B pero solo en el recorte de la zona
   C. Bits vectorizados sin ROI: cuantización (AND 0xF0) + XOR + índice RGB332 (>>, |) + LUT
   D. Bits vectorizados con ROI: recorte a la zona + C + AND con la máscara ROI (lo que usa HomeGuard)
+  E. Como D, pero el XOR y los AND los hace C con SIMD (SSE2/AVX2, nativo/bitwise_simd.c).
+     Solo aparece si la librería está compilada (Fase 7, opcional).
 
 Uso:
     python -m homeguard.preproceso.benchmark [--repeticiones 30] [--frames-python 2]
@@ -30,6 +32,7 @@ import numpy as np
 
 from homeguard.config import RAIZ, cargar_config
 from homeguard.preproceso import bitwise as bw
+from homeguard.preproceso import nativo
 
 ZONA_NORM = [[0.20, 0.25], [0.80, 0.25], [0.80, 0.90], [0.20, 0.90]]  # zona "Cocina" del demo
 
@@ -63,7 +66,9 @@ class Preparado:
         self.roi = bw.mascara_poligono(alto, ancho, pts)
         self.bbox = bw.bbox_poligono(pts, alto, ancho)
         x0, y0, x1, y1 = self.bbox
-        self.roi_recorte = self.roi[y0:y1, x0:x1]
+        # contiguo: el código C (variante E) recorre la memoria como bytes seguidos
+        self.roi_recorte = np.ascontiguousarray(self.roi[y0:y1, x0:x1])
+        self.total_roi = cv2.countNonZero(self.roi)
         self.roi_lista = self.roi.tolist()  # para el bucle Python
 
 
@@ -132,6 +137,18 @@ def variante_d_bits_con_roi(prev: np.ndarray, act: np.ndarray, p: Preparado) -> 
     return _bits(prev[y0:y1, x0:x1], act[y0:y1, x0:x1], p, p.roi_recorte)
 
 
+def variante_e_simd_c(prev: np.ndarray, act: np.ndarray, p: Preparado) -> float:
+    """E. Igual que D, pero (XOR de cuantizados) AND color AND zona se hace en C con SSE2/AVX2."""
+    x0, y0, x1, y1 = p.bbox
+    gris_prev = cv2.cvtColor(prev[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+    gris_act = cv2.cvtColor(act[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+    color = bw.mascara_color_lut(act[y0:y1, x0:x1], p.lut)
+    # (a XOR b) AND color: distinto de 0 solo donde cambiaron los bits altos y el color es fuego
+    m = nativo.xor_and(bw.cuantizar(gris_prev, p.bits_mov), bw.cuantizar(gris_act, p.bits_mov), color)
+    m = nativo.and_(m, p.roi_recorte, salida=m)  # AND zona
+    return 100.0 * cv2.countNonZero(m) / p.total_roi if p.total_roi else 0.0
+
+
 VARIANTES: list[tuple[str, str, Callable]] = [
     ("A", "Bucle Python píxel a píxel (línea base)", variante_a_bucle),
     ("B", "OpenCV clásico sin ROI (HSV + absdiff)", variante_b_clasica),
@@ -139,6 +156,14 @@ VARIANTES: list[tuple[str, str, Callable]] = [
     ("C", "Bits sin ROI (AND, XOR, >>, |, LUT)", variante_c_bits_sin_roi),
     ("D", "Bits con ROI (recorte + AND + XOR + LUT) — HomeGuard", variante_d_bits_con_roi),
 ]
+
+
+def variantes_disponibles() -> list[tuple[str, str, Callable]]:
+    """VARIANTES + la E si la librería SIMD está compilada (si no, se omite con un aviso)."""
+    if not nativo.disponible():
+        print("  (variante E omitida: falta compilar nativo/bitwise_simd.c, ver docs/BITWISE.md)")
+        return VARIANTES
+    return VARIANTES + [("E", f"C con SIMD {nativo.nivel()} (XOR + AND nativos) + ROI", variante_e_simd_c)]
 
 
 def medir(funcion: Callable, prev, act, p, repeticiones: int) -> tuple[list[float], float]:
@@ -159,7 +184,7 @@ def ejecutar(repeticiones: int = 30, frames_python: int = 2, ancho: int | None =
     prev, act = _frames_de_prueba(ancho)
     p = Preparado(act.shape[0], act.shape[1], cfg)
     filas = []
-    for clave, nombre, funcion in VARIANTES:
+    for clave, nombre, funcion in variantes_disponibles():
         n = frames_python if clave == "A" else repeticiones
         tiempos, pct = medir(funcion, prev, act, p, n)
         filas.append({"variante": clave, "descripcion": nombre, "repeticiones": n,
@@ -184,6 +209,7 @@ def ejecutar(repeticiones: int = 30, frames_python: int = 2, ancho: int | None =
 
 def _escribir_markdown(ruta: Path, filas: list[dict], forma: tuple, p: Preparado) -> None:
     x0, y0, x1, y1 = p.bbox
+    # Informe, ecuación del tamaño de fotograma: ancho × alto × 3 bytes (640×480 BGR = 921 600 bytes)
     zona_pct = 100 * cv2.countNonZero(p.roi) / (forma[0] * forma[1])
     lineas = [
         "# Benchmark del preprocesamiento bitwise",
@@ -218,6 +244,9 @@ def _escribir_markdown(ruta: Path, filas: list[dict], forma: tuple, p: Preparado
         "",
         "Los números cambian según la computadora: volvé a ejecutar el benchmark en la laptop de la feria.",
     ]
+    if any(f["variante"] == "E" for f in filas):  # antes de la línea en blanco y la nota final
+        lineas.insert(len(lineas) - 2, "- **D vs E** — SIMD escrito a mano en C (Fase 7): mismo resultado que D; el "
+                      "XOR y los AND los ejecutan pxor/pand (SSE2) o vpxor/vpand (AVX2) sobre 16 o 32 píxeles a la vez.")
     ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
 
 

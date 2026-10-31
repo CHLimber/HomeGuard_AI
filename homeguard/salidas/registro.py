@@ -56,6 +56,7 @@ class Registro:
             ev = s.get(Evento, evento_id)
             if ev is None or ev.latencia_panel_ms is not None:
                 return None
+            # Informe, ecuación de latencias: latencia_panel = t_ack (servidor) − t_det (cota superior)
             ev.latencia_panel_ms = (ahora - ev.t_deteccion) * 1000.0
             return ev.latencia_panel_ms
 

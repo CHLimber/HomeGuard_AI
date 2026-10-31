@@ -42,6 +42,7 @@ def comparar(embedding: np.ndarray, residentes: np.ndarray, nombres: list[str]) 
     """Mejor similitud coseno contra los residentes (vectores normalizados: coseno = producto punto)."""
     if residentes.size == 0:
         return -1.0, None
+    # Informe, ecuación de similitud coseno: sim = (a·b) / (‖a‖‖b‖); con vectores ya normalizados es a·b
     similitudes = residentes @ normalizar(embedding)
     i = int(np.argmax(similitudes))
     return float(similitudes[i]), nombres[i]

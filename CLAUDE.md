@@ -23,10 +23,17 @@ En Windows, Python 3.12 en `.venv` (en Linux/macOS, `.venv/bin/python`):
 .venv/Scripts/python -m homeguard.preproceso.benchmark               # reescribe docs/BENCHMARK.md y docs/benchmark.csv
 .venv/Scripts/python scripts/evaluar_detector.py --detector fuego --carpeta data/videos_prueba/fuego [--bd ...]
 .venv/Scripts/python scripts/reporte_latencias.py [--demo]
+.venv/Scripts/python scripts/probar_camara.py 0 [--sin-ventana]     # o una URL http://IP:8080/video; muestra FPS
+.venv/Scripts/python scripts/probar_telegram.py [--obtener-chat-id]
+.venv/Scripts/python scripts/generar_tablas_informe.py [--demo] [--desde AAAA-MM-DD]  # → docs/informe/
+.venv/Scripts/python scripts/generar_lut_fuego.py --bits 9 [--muestras carpeta]       # → data/lut_fuego_512.npy
+nativo\compilar.bat                                                 # Fase 7 opcional (gcc/MinGW o cl)
 ```
+`scripts/` es un paquete: `run.py --demo`, el benchmark y `tests/conftest.py` importan
+`scripts.generar_video_sintetico.generar_todos` para crear los videos sintéticos si faltan.
 Dashboard: http://localhost:8000/en-vivo · Panel: http://IP:8000/alarma. No hay linter configurado.
 Al terminar un cambio, verificar con los tests y con `run.py --demo`: la puerta sintética dispara una alarma a los
-~6 s, y después una vez por cada cooldown de 60 s.
+~6 s, y después una vez por cada cooldown de 30 s (si el sistema está armado).
 
 ## Arquitectura (lo que no se ve leyendo un solo archivo)
 
@@ -87,10 +94,17 @@ sistema en vivo y `scripts/evaluar_detector.py`. Los evaluadores escriben en `do
 - Frontend sin CDN (tiene que funcionar offline en la feria): CSS propio en `web/static`, JS sin frameworks.
 - Sin Docker, MQTT, nube ni hardware. Mantener las dependencias al mínimo. Las decisiones no cubiertas se anotan en
   `docs/DECISIONES.md`.
+- Valores por defecto de `config.yaml` = Anexo C del informe Word; cada fórmula del informe lleva un comentario
+  `# Informe, ecuación de …`. No cambiar fórmulas ni defaults sin anotarlo en `docs/DECISIONES.md` (39–40 listan
+  las diferencias aceptadas).
+- Las claves de la tabla `config` que empiezan con `_` (p. ej. `_sistema.armado`) son internas: no se validan ni se
+  restauran. Desarmado, los detectores siguen corriendo pero el motor no confirma nada.
+- `homeguard/preproceso/nativo.py` carga `nativo/` con ctypes solo si está compilado; todo tiene que funcionar sin él.
 - Commits sin líneas de atribución a Claude.
 
 ## Estado
-Las fases 0–6 están hechas (`docs/PROGRESO.md`). Lo pendiente lo hace el grupo a mano (`docs/GUIA_GRUPO.md`): `.env`
+Las fases 0–6 y la revisión contra `Contexto_CaludeCode.md` (la especificación original) están hechas. La
+Fase 7 (SIMD en C) tiene el código, pero no se compiló (`docs/PROGRESO.md`). Lo pendiente lo hace el grupo a mano (`docs/GUIA_GRUPO.md`): `.env`
 de Telegram, URLs de los celulares, zonas, residentes, videos de prueba y calibración.
 
 Limitaciones conocidas en `--demo`: el YOLO de fuego no reconoce la llama sintética y YOLO no ve el rectángulo de

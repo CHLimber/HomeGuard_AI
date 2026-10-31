@@ -9,9 +9,14 @@ y aplica, por cada (tipo, cámara, zona):
 Cuando dispara, enciende el bit de la anomalía en el byte de estado (ver
 estado.py). El byte queda encendido hasta que alguien toca "SILENCIAR" (o
 pasan motor.auto_limpiar_s segundos, si está configurado).
+
+Desarmado (desde el dashboard): el motor ignora las observaciones, no confirma
+nada y el byte queda en 0. Al volver a armar, las ventanas de votación empiezan
+vacías, así una observación vieja no completa los N votos.
 """
 from __future__ import annotations
 
+import math
 import threading
 from collections import deque
 from dataclasses import dataclass, field
@@ -41,12 +46,35 @@ class Disparo:
     observacion: PosibleEvento | None = None
 
 
+def probabilidad_falsa_alarma(p: float, n: int, m: int) -> float:
+    """Probabilidad de que la votación N de M confirme una falsa alarma.
+
+    Ecuación binomial N de M del informe: si cada frame da un falso positivo con
+    probabilidad p, independiente de los demás, la alarma se confirma cuando hay
+    al menos N positivos entre M frames:
+
+        P(falsa alarma) = Σ_{k=N}^{M} C(M,k) · p^k · (1 − p)^(M − k)
+
+    Ejemplo: p = 0,05, N = 3, M = 5
+        C(5,3)·0,05³·0,95² + C(5,4)·0,05⁴·0,95 + C(5,5)·0,05⁵
+        = 0,0011281 + 0,0000297 + 0,0000003 ≈ 0,00116
+    >>> round(probabilidad_falsa_alarma(0.05, 3, 5), 5)
+    0.00116
+    """
+    if not 0.0 <= p <= 1.0:
+        raise ValueError("p tiene que estar entre 0 y 1")
+    if not 1 <= n <= m:
+        raise ValueError("tiene que cumplirse 1 <= N <= M")
+    return sum(math.comb(m, k) * p ** k * (1 - p) ** (m - k) for k in range(n, m + 1))
+
+
 class MotorReglas:
     def __init__(self, alarmas: CfgAlarmas, motor: CfgMotor) -> None:
         self._lock = threading.Lock()
         self.alarmas = alarmas
         self.cfg_motor = motor
         self.estado = 0  # byte de alarmas enclavadas
+        self.armado = True  # desarmado: no se confirma ninguna alarma
         self._ventanas: dict[Clave, deque[bool]] = {}
         self._ultimo_disparo: dict[Clave, float] = {}
         self._ultima_obs: dict[Clave, tuple[bool, float]] = {}
@@ -69,6 +97,8 @@ class MotorReglas:
         """Registra las observaciones y devuelve las alarmas que se confirman ahora."""
         disparos: list[Disparo] = []
         with self._lock:
+            if not self.armado:
+                return disparos
             for obs in observaciones:
                 self._t_actual = max(self._t_actual, obs.t)
                 clave: Clave = (obs.tipo, obs.camara_id, obs.zona)
@@ -105,6 +135,15 @@ class MotorReglas:
         with self._lock:
             self.estado = 0
             return self.estado
+
+    def fijar_armado(self, armado: bool) -> None:
+        """Arma o desarma el sistema. En los dos casos las ventanas de votación vuelven a empezar."""
+        with self._lock:
+            self.armado = armado
+            self._ventanas.clear()
+            self._ultima_obs.clear()
+            if not armado:
+                self.estado = 0
 
     @property
     def activos(self) -> int:

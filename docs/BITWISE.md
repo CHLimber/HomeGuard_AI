@@ -151,6 +151,58 @@ Ventaja: la regla de color puede ser tan compleja como se quiera (varios rangos,
 costo por frame no cambia, porque siempre es una búsqueda en la tabla. Desventaja: con 3-3-2 bits se
 pierde precisión de color. Por eso la capa 1 solo filtra y la capa 2 (YOLO) confirma.
 
+### 5.1 Variante del informe: índice de 9 bits + tabla de 512
+
+**Dónde:** `indice_rgb9`, `construir_lut_fuego_9bits`, `mascara_color_lut9`; se activa con
+`detectores.fuego.modo_capa1: lut9`.
+
+Es la ecuación del índice de color del informe: 3 bits por canal, 9 bits en total (0 a 511).
+
+```
+idx = ((R >> 5) << 6) OR ((G >> 5) << 3) OR (B >> 5)
+       RRR 000 000         000 GGG 000         000 000 BBB
+```
+
+Ejemplo, el mismo naranja BGR = (0, 140, 255):
+
+```
+R = 255 = 1111 1111 → >> 5 = 111 → << 6 = 111 000 000 = 448
+G = 140 = 1000 1100 → >> 5 = 100 → << 3 = 000 100 000 =  32
+B =   0 = 0000 0000 → >> 5 = 000                       =   0
+idx = 448 OR 32 OR 0 = 111 100 000 = 480
+```
+
+Dos detalles:
+- **Orden de los canales.** OpenCV entrega los píxeles como B, G, R. La función separa los canales
+  con `b, g, r = cv2.split(bgr)` y recién ahí aplica la fórmula con R en los bits altos.
+- **Desborde.** El índice ocupa 9 bits y no entra en un byte: en `uint8`, `7 << 6 = 448` quedaría en
+  `448 AND 1111 1111 = 192`. Por eso se calcula en `uint16`. El blanco da 511 y no 255.
+
+La tabla tiene 512 entradas, una por índice, con 255 ("fuego") o 0. Es la tabla de booleanos del
+informe, guardada como 0/255 para que `tabla[idx]` ya sea una máscara que se combina con AND.
+`cv2.LUT` solo acepta tablas de 256, así que la búsqueda se hace con indexación de NumPy, que
+también es vectorizada: `mascara = tabla[idx]`.
+
+### 5.2 Comparación de los tres modos de la capa 1
+
+`detectores.fuego.modo_capa1` elige cómo se calcula el "color fuego". Los tres modos usan la misma regla
+HSV de `config.yaml` (tono `hue_min`–`hue_max`, saturación ≥ `sat_min`, brillo ≥ `val_min`).
+
+| Modo | Cómo se calcula | Precisión de color | Tiempo en un frame de 640×480 |
+|---|---|---|---|
+| `lut332` (por defecto) | índice de 8 bits (3-3-2) + `cv2.LUT` | 256 celdas; el azul solo tiene 2 bits | ≈ 1,0 ms |
+| `lut9` (informe) | índice de 9 bits (3-3-3) en `uint16` + `tabla[idx]` | 512 celdas | ≈ 3,2 ms |
+| `hsv` (sin bits) | `cv2.cvtColor` a HSV + `cv2.inRange` | exacta | ≈ 0,5 ms |
+
+Los tiempos son de la laptop de desarrollo y valen para la imagen completa. El detector solo procesa el
+recorte de la zona, así que en la práctica el tiempo es menor.
+
+`lut9` es más lento porque pasa a `uint16` y busca en la tabla con NumPy, y `cv2.LUT` (de 8 bits) está
+optimizado con SIMD. Con 3,2 ms por frame igual entra de sobra en el presupuesto de ~100 ms (10 FPS). Las
+tablas también se pueden generar a partir de muestras reales de fuego con `scripts/generar_lut_fuego.py`
+y cargarse con `detectores.fuego.lut_archivo`. Con muestras, la regla deja de ser un rectángulo en HSV, y
+eso no se puede hacer con `inRange`.
+
 ## 6. Byte de estado de la alarma
 
 **Dónde:** `homeguard/reglas/estado.py` (Python) y `homeguard/web/static/js/comun.js` (JavaScript del panel).
@@ -214,3 +266,68 @@ Conclusión para la defensa: el impacto grande lo dan **vectorizar** las operaci
 y **recortar con AND a la región de interés** (~3x). El AND/XOR también permite **saltear los
 modelos pesados**: el YOLO de fuego solo corre cuando la capa 1 (color AND movimiento AND zona)
 supera el umbral.
+
+## 8. Fase 7: SIMD en C
+
+NumPy y OpenCV ya usan instrucciones SIMD por dentro, pero ahí no se ven. En `nativo/bitwise_simd.c` el XOR
+y el AND de dos imágenes están escritos "a mano" en tres niveles, para mostrar qué instrucciones ejecuta la CPU:
+
+| Nivel | Bytes por instrucción | Registro | Vueltas para un gris 640x480 (307 200 bytes) |
+|---|---:|---|---:|
+| Escalar | 1 | 8 bits (`al`) | 307 200 |
+| SSE2 | 16 | XMM de 128 bits | 19 200 |
+| AVX2 | 32 | YMM de 256 bits | 9 600 |
+
+Funciones exportadas (las carga `homeguard/preproceso/nativo.py` con `ctypes`):
+`hg_xor` (s = a XOR b), `hg_and` (s = a AND b), `hg_xor_and` (s = (a XOR b) AND máscara), y
+`hg_nivel` / `hg_nivel_detectado` / `hg_forzar_nivel` para ver o limitar el nivel usado.
+
+**Cómo elige el nivel.** Al primer uso pregunta a la CPU con la instrucción `cpuid` (`__builtin_cpu_supports`
+en gcc/clang, `__cpuidex` + `_xgetbv` en MSVC) si soporta AVX2 y si el sistema operativo habilita los
+registros YMM. Las funciones AVX2 se compilan con `__attribute__((target("avx2")))`, no con `-mavx2` para todo
+el archivo, así la misma DLL carga en una CPU sin AVX2 y usa SSE2 (que tiene toda CPU x86-64). Cuando
+`n` no es múltiplo de 16 o 32, los bytes que sobran ("la cola") los procesa el bucle escalar.
+
+**Correspondencia intrínseco → instrucción:**
+
+| Intrínseco en C | Instrucción x86 | Qué hace |
+|---|---|---|
+| `_mm_loadu_si128` | `movdqu xmm, [mem]` | carga 16 bytes (sin exigir alineación) |
+| `_mm_xor_si128` | `pxor xmm, xmm` | XOR de 16 bytes a la vez |
+| `_mm_and_si128` | `pand xmm, xmm` | AND de 16 bytes a la vez |
+| `_mm_storeu_si128` | `movdqu [mem], xmm` | guarda 16 bytes |
+| `_mm256_loadu_si256` | `vmovdqu ymm, [mem]` | carga 32 bytes |
+| `_mm256_xor_si256` | `vpxor ymm, ymm, ymm` | XOR de 32 bytes (3 operandos: no pisa las entradas) |
+| `_mm256_and_si256` | `vpand ymm, ymm, ymm` | AND de 32 bytes |
+| `_mm256_storeu_si256` | `vmovdqu [mem], ymm` | guarda 32 bytes |
+
+**Cómo compilar** (no hace falta para que el sistema funcione: sin la librería, el benchmark omite la fila E):
+
+```bash
+nativo\compilar.bat        # Windows: MinGW gcc (MSYS2) o, si no está, MSVC cl
+sh nativo/compilar.sh      # Linux/macOS: gcc o clang
+.venv/Scripts/python -m pytest tests/test_nativo.py -q    # compara contra cv2.bitwise_* en 3 niveles
+.venv/Scripts/python -m homeguard.preproceso.benchmark    # agrega la fila E a docs/BENCHMARK.md
+```
+
+El script también genera el ensamblador: `gcc -O2 -S -masm=intel` → `nativo/bitwise_simd.s` (con MSVC,
+`/FA` → `nativo/bitwise_simd.asm`). En la PC de desarrollo no había compilador, así que el fragmento y la
+medición todavía no están: los completa el grupo.
+
+**Fragmento del bucle vectorizado** (buscar `xor_avx2` en `nativo/bitwise_simd.s` y pegar el bucle; tiene que
+verse `vmovdqu`, `vpxor` y el salto que vuelve al inicio del bucle):
+
+```asm
+; PEGAR AQUÍ el bucle de xor_avx2 (y, si entra, el de xor_sse2 con movdqu/pxor) de nativo/bitwise_simd.s
+```
+
+**Fila medida** (copiarla de `docs/BENCHMARK.md` después de compilar y correr el benchmark):
+
+| Variante | Descripción | ms/frame (mediana) | FPS equivalentes | Aceleración vs A | Resultado (% zona) |
+|---|---|---:|---:|---:|---:|
+| E | C con SIMD (XOR + AND nativos) + ROI | _pendiente_ | _pendiente_ | _pendiente_ | _pendiente_ |
+
+Qué esperar al explicarlo: E debe dar **exactamente el mismo resultado** que D (el test lo verifica). La
+diferencia de tiempo con D probablemente sea chica, porque OpenCV ya usa SIMD para `bitwise_*` y la mayor parte del
+tiempo se va en la conversión a gris y en la LUT, no en el XOR/AND. El valor de esta fase es **ver** las
+instrucciones `pxor`/`pand`/`vpxor` que antes quedaban escondidas dentro de OpenCV.

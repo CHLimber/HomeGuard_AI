@@ -2,7 +2,9 @@
 // Cada página puede registrar funciones en `alTelemetria` para usar los datos.
 const alTelemetria = [];
 const alAlerta = [];
+const alArmado = [];     // funciones(armado) que se llaman cuando cambia armado/desarmado
 let ultimaTelemetria = null;
+let sistemaArmado = null;
 
 const wsDashboard = conectarWS("/ws/estado", {
   alCambiarConexion: ok => marcarConexion(document.getElementById("conexion-dash"), ok),
@@ -10,12 +12,14 @@ const wsDashboard = conectarWS("/ws/estado", {
     if (msg.tipo === "telemetria") {
       ultimaTelemetria = msg;
       actualizarBanner(msg.estado);
+      actualizarArmado(msg.armado);
       alTelemetria.forEach(f => f(msg));
     } else if (msg.tipo === "alerta") {
       actualizarBanner(msg.estado, msg.evento);
       alAlerta.forEach(f => f(msg));
     } else if (msg.tipo === "estado") {
       actualizarBanner(msg.estado);
+      actualizarArmado(msg.armado);
     }
   },
 });
@@ -29,6 +33,22 @@ function actualizarBanner(estado, evento) {
       "¡Alarma! " + activas + (evento ? ` — ${evento.zona} (${evento.camara || evento.camara_id})` : "");
   }
 }
+
+function actualizarArmado(armado) {
+  if (armado === undefined || armado === sistemaArmado) return;
+  sistemaArmado = armado;
+  document.getElementById("banner-desarmado").classList.toggle("visible", !armado);
+  alArmado.forEach(f => f(armado));
+}
+
+async function fijarArmado(armado) {
+  const r = await api("/api/armado", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ armado }) });
+  actualizarArmado(r.armado);
+  return r.armado;
+}
+
+document.getElementById("banner-armar").addEventListener("click", () => fijarArmado(true));
 
 document.getElementById("banner-silenciar").addEventListener("click", () => wsDashboard.enviar({ accion: "silenciar" }));
 

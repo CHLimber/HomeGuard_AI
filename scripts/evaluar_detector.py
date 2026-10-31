@@ -115,6 +115,7 @@ def evaluar_video(video: Path, esperado: bool, detector: str, cfg: Config, anali
 def metricas(res: list[ResultadoVideo]) -> dict[str, float | int]:
     c = {k: sum(r.clase == k for r in res) for k in ("VP", "FP", "VN", "FN")}
     vp, fp, vn, fn = c["VP"], c["FP"], c["VN"], c["FN"]
+    # Informe, ecuaciones de P/R/F1: P = VP/(VP+FP), R = VP/(VP+FN), F1 = 2PR/(P+R)
     precision = vp / (vp + fp) if vp + fp else 0.0
     recall = vp / (vp + fn) if vp + fn else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0

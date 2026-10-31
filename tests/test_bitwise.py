@@ -85,6 +85,52 @@ def test_lut_coincide_con_hsv_en_colores_centrales():
     assert np.array_equal(bw.mascara_color_lut(centros, lut)[0], hsv[0])
 
 
+def test_indice_rgb9_formula_del_informe():
+    """idx = ((R >> 5) << 6) | ((G >> 5) << 3) | (B >> 5), con BGR de OpenCV y sin desborde."""
+    naranja = np.array([[[0, 140, 255]]], np.uint8)          # BGR
+    idx = bw.indice_rgb9(naranja)
+    assert idx.dtype == np.uint16
+    assert int(idx[0, 0]) == 480                              # 448 | 32 | 0 = 0b111_100_000
+    blanco = np.array([[[255, 255, 255]]], np.uint8)
+    assert int(bw.indice_rgb9(blanco)[0, 0]) == 511           # no se pierde el bit 8 (en uint8 daría 255)
+    azul = np.array([[[255, 0, 0]]], np.uint8)
+    assert int(bw.indice_rgb9(azul)[0, 0]) == 0b111           # B ocupa los 3 bits bajos
+
+
+def test_indice_rgb9_coincide_con_la_formula_en_todos_los_colores():
+    rng = np.random.default_rng(0)
+    img = rng.integers(0, 256, (40, 50, 3), dtype=np.uint8)
+    b, g, r = (img[..., i].astype(np.int32) for i in range(3))
+    esperado = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5)
+    assert np.array_equal(bw.indice_rgb9(img), esperado)
+
+
+def test_lut_9bits_clasifica_colores():
+    lut = bw.construir_lut_fuego_9bits(hue_min=0, hue_max=35, sat_min=100, val_min=150)
+    assert lut.shape == (512,) and lut.dtype == np.uint8
+    assert lut[480] == 255                                    # celda del naranja (240, 144, 16)
+    pixeles = np.array([[[0, 140, 255], [0, 220, 255], [255, 0, 0], [0, 200, 0], [128, 128, 128], [0, 0, 40]]],
+                       np.uint8)  # naranja, amarillo, azul, verde, gris, rojo oscuro
+    assert bw.mascara_color_lut9(pixeles, lut)[0].tolist() == [255, 255, 0, 0, 0, 0]
+
+
+def test_lut_9bits_coincide_con_hsv_en_colores_centrales():
+    lut = bw.construir_lut_fuego_9bits(0, 35, 100, 150)
+    idx = np.arange(512)
+    centros = np.stack([(idx & 7) * 32 + 16, ((idx >> 3) & 7) * 32 + 16, ((idx >> 6) & 7) * 32 + 16],
+                       -1).astype(np.uint8).reshape(1, 512, 3)
+    assert np.array_equal(bw.indice_rgb9(centros)[0], idx)
+    hsv = cv2.inRange(cv2.cvtColor(centros, cv2.COLOR_BGR2HSV), (0, 100, 150), (35, 255, 255))
+    assert np.array_equal(bw.mascara_color_lut9(centros, lut)[0], hsv[0])
+
+
+def test_mascara_color_hsv_y_tono_que_da_la_vuelta():
+    pixeles = np.array([[[0, 140, 255], [255, 0, 0], [60, 0, 255]]], np.uint8)  # naranja, azul, rojo-magenta
+    assert bw.mascara_color_hsv(pixeles, 0, 35, 100, 150)[0].tolist() == [255, 0, 0]
+    # rango 170..35 (da la vuelta por el 180): incluye el rojo-magenta (tono ~173)
+    assert bw.mascara_color_hsv(pixeles, 170, 35, 100, 150)[0].tolist() == [255, 0, 255]
+
+
 def test_porcentaje_activos():
     m = np.zeros((10, 10), np.uint8)
     m[:5, :] = 255
