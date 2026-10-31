@@ -250,20 +250,22 @@ en [`BENCHMARK.md`](BENCHMARK.md) y `benchmark.csv`.
 Resultados medidos en la laptop de desarrollo (frame de 640x480, zona del 39 % del frame; tus números
 van a ser otros):
 
-- **Vectorizar es lo que más aporta.** A tarda ~125–135 ms por frame y D ~0,5–0,7 ms: unas
-  **200 veces más rápido**, con el mismo resultado exacto (A, C y D dan el mismo porcentaje). Con el
+Con el índice de color de 9 bits del informe (tabla de 512, el modo por defecto desde el 31/10/2026):
+
+- **Vectorizar es lo que más aporta.** A tarda ~117 ms por frame y D ~1,5 ms: unas
+  **80 veces más rápido**, con el mismo resultado exacto (A, C y D dan el mismo porcentaje). Con el
   bucle Python, solo el preprocesamiento limitaría el sistema a ~8 FPS.
 - **La ROI con AND ahorra en proporción al área descartada:** de C a D (y de B a B2) el tiempo baja
-  ~3 veces, porque la zona es un 39 % del frame.
-- **A igual área, el HSV nativo de OpenCV es un poco más rápido que la LUT RGB332** (B2 ≈ 0,3–0,4 ms
-  contra D ≈ 0,5–0,7 ms en esta máquina). La conversión HSV de OpenCV está muy optimizada, y armar el
-  índice RGB332 necesita separar canales y hacer desplazamientos en NumPy. Se dejó la LUT porque
-  permite cualquier regla de color al mismo costo y porque es el ejercicio de bits que pide la
-  materia. Igual, la diferencia (~0,3 ms) es mínima frente a lo que tarda un YOLO (30–100 ms por
-  frame).
+  ~2,5–3,5 veces, porque la zona es un 39 % del frame.
+- **A igual área, el HSV nativo de OpenCV es más rápido que la LUT** (B2 ≈ 0,3 ms contra D ≈ 1,5 ms con
+  9 bits; con el índice RGB332 de 8 bits y `cv2.LUT`, D baja a ≈ 0,6 ms). La conversión HSV de OpenCV
+  está muy optimizada, y el índice de 9 bits necesita uint16 y una indexación con NumPy. Se dejó la LUT
+  porque es la ecuación del informe, permite cualquier regla de color al mismo costo y es el ejercicio
+  de bits que pide la materia. Igual, la diferencia (~1 ms) es mínima frente a lo que tarda un YOLO
+  (30–100 ms por frame).
 
-Conclusión para la defensa: el impacto grande lo dan **vectorizar** las operaciones de bits (~200x)
-y **recortar con AND a la región de interés** (~3x). El AND/XOR también permite **saltear los
+Conclusión para la defensa: el impacto grande lo dan **vectorizar** las operaciones de bits (~80x)
+y **recortar con AND a la región de interés** (~2,5x). El AND/XOR también permite **saltear los
 modelos pesados**: el YOLO de fuego solo corre cuando la capa 1 (color AND movimiento AND zona)
 supera el umbral.
 

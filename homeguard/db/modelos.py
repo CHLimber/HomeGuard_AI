@@ -66,6 +66,18 @@ class Zona(Base):
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora)
 
 
+class MedioPrueba(Base):
+    """Video o serie de imágenes subidos en "Prueba con video": se analizan como una cámara más."""
+    __tablename__ = "medio_prueba"
+    id: Mapped[str] = mapped_column(String(12), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(100))
+    tipo: Mapped[str] = mapped_column(String(10))                 # "video" o "imagenes"
+    ruta: Mapped[str] = mapped_column(String(300))                # archivo de video o carpeta de imágenes
+    detectores: Mapped[list] = mapped_column(JSON)
+    segundos_por_imagen: Mapped[float] = mapped_column(Float, default=3.0)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora)
+
+
 class ConfigOverride(Base):
     """Valores de config.yaml cambiados desde el dashboard (clave con puntos -> valor JSON)."""
     __tablename__ = "config"

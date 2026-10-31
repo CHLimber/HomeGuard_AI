@@ -81,7 +81,8 @@ class Analizador:
         return estado.tracker.update_with_detections(det)
 
     def analizar(self, camara_id: str, imagen: np.ndarray, t: float, cfg: Config, zonas: list[Zona],
-                 nombres_detectores: list[str], hora: datetime | None = None) -> tuple[Contexto, list[PosibleEvento]]:
+                 nombres_detectores: list[str], hora: datetime | None = None,
+                 fuente_estatica: bool = False) -> tuple[Contexto, list[PosibleEvento]]:
         frame = redimensionar(imagen, cfg.procesamiento.ancho_proceso)
         gris = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         estado = self.estados.setdefault(camara_id, EstadoCamara(camara_id))
@@ -92,7 +93,8 @@ class Analizador:
                                                         cfg.preproceso.apertura_movimiento_px)
         ctx = Contexto(camara_id=camara_id, frame=frame, t=t, cfg=cfg, zonas=zonas, estado=estado, gris=gris,
                        mascara_movimiento=movimiento, frame_original=imagen, hora=hora,
-                       detector_general=lambda f: self._detectar_general(estado, cfg, f))
+                       detector_general=lambda f: self._detectar_general(estado, cfg, f),
+                       fuente_estatica=fuente_estatica)
 
         observaciones: list[PosibleEvento] = []
         for nombre in nombres_detectores:

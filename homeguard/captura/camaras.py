@@ -1,6 +1,7 @@
 """Captura de video: un hilo por cámara que guarda solo el último frame.
 
-- Webcam (índice), URL HTTP/MJPEG (IP Webcam, DroidCam) o archivo de video.
+- Webcam (índice), URL HTTP/MJPEG (IP Webcam, DroidCam), archivo de video o
+  carpeta de imágenes (presentación: cada imagen se repite `segundos_por_imagen`).
 - Leer siempre lo más rápido posible y quedarse con el último frame evita que
   el procesamiento trabaje con imágenes viejas (el buffer no se acumula).
 - Los archivos se reproducen en bucle a su FPS real, como si fueran cámaras.
@@ -22,9 +23,17 @@ from homeguard.config import CfgCamara, CfgCaptura, ruta_abs
 
 log = logging.getLogger(__name__)
 
+EXTENSIONES_IMAGEN = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+FPS_IMAGENES = 10.0  # una imagen fija se publica como un video a este ritmo
+
+
+def listar_imagenes(carpeta: Path) -> list[Path]:
+    """Imágenes de una carpeta en orden alfabético (el orden de la presentación)."""
+    return sorted(p for p in carpeta.iterdir() if p.suffix.lower() in EXTENSIONES_IMAGEN)
+
 
 def resolver_fuente(fuente: int | str) -> tuple[int | str, str]:
-    """Devuelve (fuente para cv2, tipo) con tipo en {'webcam', 'url', 'archivo'}."""
+    """Devuelve (fuente para cv2, tipo) con tipo en {'webcam', 'url', 'archivo', 'imagenes'}."""
     if isinstance(fuente, int):
         return fuente, "webcam"
     texto = str(fuente).strip()
@@ -32,7 +41,8 @@ def resolver_fuente(fuente: int | str) -> tuple[int | str, str]:
         return int(texto), "webcam"
     if texto.lower().startswith(("http://", "https://", "rtsp://")):
         return texto, "url"
-    return str(ruta_abs(texto)), "archivo"
+    ruta = ruta_abs(texto)
+    return str(ruta), "imagenes" if ruta.is_dir() else "archivo"
 
 
 @dataclass
@@ -109,6 +119,15 @@ class Camara:
     def _bucle(self) -> None:
         espera = self.cfg_captura.reintento_inicial_s
         while not self._detener.is_set():
+            if self.tipo_fuente == "imagenes":
+                try:
+                    self._reproducir_imagenes()
+                except Exception as e:  # noqa: BLE001
+                    self.conectada, self.error = False, str(e)
+                    log.warning("Cámara %s: %s. Reintento en %.0f s", self.id, e, espera)
+                    self._detener.wait(espera)
+                    espera = min(espera * 2, self.cfg_captura.reintento_max_s)
+                continue
             try:
                 cap = self._abrir()
             except Exception as e:  # noqa: BLE001
@@ -130,6 +149,22 @@ class Camara:
                 log.warning("Cámara %s: se perdió la señal, reconectando...", self.id)
                 self.reconexiones += 1
                 self._detener.wait(espera)
+
+    def _reproducir_imagenes(self) -> None:
+        """Presentación en bucle: cada imagen se publica a FPS_IMAGENES durante `segundos_por_imagen`."""
+        rutas = listar_imagenes(Path(self.fuente))
+        imagenes = [img for img in (cv2.imread(str(r)) for r in rutas) if img is not None]
+        if not imagenes:
+            raise FileNotFoundError(f"no hay imágenes legibles en {self.fuente}")
+        log.info("Cámara %s: presentación de %d imágenes", self.id, len(imagenes))
+        self.conectada, self.error, self.fps = True, None, FPS_IMAGENES
+        periodo = 1.0 / FPS_IMAGENES
+        inicio = time.time()
+        while not self._detener.is_set():
+            transcurrido = time.time() - inicio
+            indice = int(transcurrido // self.cfg.segundos_por_imagen) % len(imagenes)
+            self._publicar(imagenes[indice])
+            self._detener.wait(periodo)
 
     def _leer_hasta_fallar(self, cap: cv2.VideoCapture) -> None:
         es_archivo = self.tipo_fuente == "archivo"
@@ -188,6 +223,12 @@ class GestorCamaras:
                 cam = Camara(cid, cfg, self.cfg_captura)
                 cam.iniciar()
                 self.camaras[cid] = cam
+
+    def quitar(self, camara_id: str) -> None:
+        """Detiene una cámara; el próximo sincronizar() la vuelve a abrir desde el principio."""
+        cam = self.camaras.pop(camara_id, None)
+        if cam is not None:
+            cam.detener()
 
     def obtener(self, camara_id: str) -> Camara | None:
         return self.camaras.get(camara_id)

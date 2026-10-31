@@ -166,7 +166,9 @@ def main(argv: list[str] | None = None) -> int:
     eventos = consultas.eventos(bd, datetime.fromisoformat(args.desde) if args.desde else None)
     bd.cerrar()
 
-    origen = f"{len(eventos)} eventos de `{Path(ruta_bd).name}`" + (f" desde {args.desde}" if args.desde else "")
+    con_ack = sum(e.latencia_panel_ms is not None for e in eventos)
+    origen = (f"{len(eventos)} eventos ({con_ack} con ack del panel) de `{Path(ruta_bd).name}`"
+              + (f" desde {args.desde}" if args.desde else ""))
     ruta_md = generar(eventos, cfg.panel.latencia_objetivo_ms, Path(args.benchmark), Path(args.pruebas),
                       Path(args.salida), origen)
     print(ruta_md.read_text(encoding="utf-8"))

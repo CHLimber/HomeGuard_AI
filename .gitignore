@@ -3,6 +3,7 @@
 models/
 data/eventos/
 data/referencias/
+data/pruebas/
 data/*.log
 data/videos_prueba/**/*.mp4
 data/videos_prueba/**/*.avi

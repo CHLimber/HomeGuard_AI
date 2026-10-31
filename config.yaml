@@ -16,6 +16,8 @@ general:
   base_datos: data/homeguard.db            # SQLite con residentes, zonas y eventos
   carpeta_eventos: data/eventos            # fotos de cada evento
   carpeta_referencias: data/referencias    # imágenes de referencia de puertas cerradas
+  carpeta_pruebas: data/pruebas            # videos e imágenes subidos en "Prueba con video" (modo exposición)
+  max_mb_prueba: 500                       # tamaño máximo (MB) de lo que se sube en "Prueba con video"
   archivo_log: data/homeguard.log          # log rotativo (además de la consola)
   nivel_log: INFO                          # DEBUG, INFO, WARNING o ERROR
 
@@ -27,6 +29,7 @@ procesamiento:
   fps_stream: 10           # FPS del video MJPEG que ve el dashboard
   calidad_jpeg_stream: 70  # calidad JPEG del stream del dashboard (1-100)
   intervalo_telemetria_s: 0.5  # cada cuánto se envían FPS, CPU y valores de calibración al dashboard
+  precargar_modelos: true  # al arrancar carga y "calienta" los YOLO antes de analizar (unos segundos más de arranque, pero la primera alarma no se demora)
 
 captura:
   reintento_inicial_s: 1.0   # espera antes del primer reintento si una cámara se cae
@@ -42,6 +45,8 @@ preproceso:
 #   - un número: índice de webcam (0 = webcam de la laptop)
 #   - una URL: IP Webcam -> http://IP:8080/video ; DroidCam -> http://IP:4747/video
 #   - la ruta de un archivo de video (se reproduce en bucle)
+#   - la ruta de una carpeta con imágenes (presentación en bucle, en orden alfabético;
+#     cada imagen se muestra "segundos_por_imagen" segundos, por defecto 3)
 # "detectores": qué anomalías se buscan en esa cámara. Los que dependen de
 # zonas (rostros, piscina, puerta) solo corren si la cámara tiene esa zona.
 # -----------------------------------------------------------------------------

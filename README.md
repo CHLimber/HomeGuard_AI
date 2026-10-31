@@ -80,6 +80,7 @@ Al arrancar se muestran las direcciones:
 | Residentes | Registrar personas de la casa con 3 a 5 fotos (se guarda solo el vector del rostro) |
 | Configuración | URLs de cámaras, umbrales, probar Telegram |
 | Historial | Eventos con foto, confianza y latencias; exportar CSV |
+| Prueba con video | Modo exposición: subir un video o fotos que se analizan como una cámara más (suena el panel, llega el Telegram) |
 
 Todos los umbrales están en [`config.yaml`](config.yaml), comentados. Lo que se cambia desde el dashboard se guarda
 en la base de datos y se aplica encima de `config.yaml`. El botón **Restaurar config.yaml** lo deshace.

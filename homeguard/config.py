@@ -43,6 +43,8 @@ class CfgGeneral(_Base):
     base_datos: str = "data/homeguard.db"
     carpeta_eventos: str = "data/eventos"
     carpeta_referencias: str = "data/referencias"
+    carpeta_pruebas: str = "data/pruebas"
+    max_mb_prueba: float = Field(500, gt=0)
     archivo_log: str = "data/homeguard.log"
     nivel_log: str = "INFO"
 
@@ -55,6 +57,7 @@ class CfgProcesamiento(_Base):
     fps_stream: float = Field(10, gt=0, le=30)
     calidad_jpeg_stream: int = Field(70, ge=10, le=100)
     intervalo_telemetria_s: float = Field(0.5, gt=0)
+    precargar_modelos: bool = True
 
 
 class CfgCaptura(_Base):
@@ -72,6 +75,7 @@ class CfgCamara(_Base):
     nombre: str
     fuente: int | str
     activa: bool = True
+    segundos_por_imagen: float = Field(3.0, gt=0)
     detectores: list[Literal["rostros", "piscina", "fuego", "caidas", "puerta"]] = Field(default_factory=list)
 
 

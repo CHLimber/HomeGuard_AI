@@ -97,3 +97,11 @@ td img { height: 54px; border-radius: 3px; display: block; }
   .lampara { font-size: .7rem; padding: 8px 2px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Prueba con video */
+.opciones-detector { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 4px 12px; margin-bottom: 10px; }
+label.casilla { display: flex; align-items: center; gap: 6px; font-size: .92rem; color: var(--tinta); margin-bottom: 6px; cursor: pointer; }
+label.casilla input { margin: 0; }
+tr.fila-activa td { background: #e3efe6; }
+.guia-prueba td:first-child { white-space: nowrap; font-family: var(--f-senal); }
+.evento-prueba img { border-radius: 3px; display: block; }

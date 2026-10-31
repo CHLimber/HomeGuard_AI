@@ -75,7 +75,8 @@ class Pipeline:
                 continue
             self._ultimo_numero[cam.id] = capturado.numero
             try:
-                self.procesar(cam.id, capturado.imagen, cam.cfg.detectores, cam.cfg.nombre)
+                self.procesar(cam.id, capturado.imagen, cam.cfg.detectores, cam.cfg.nombre,
+                              fuente_estatica=cam.tipo_fuente == "imagenes")
             except Exception:  # noqa: BLE001 - una cámara con problemas no frena a las demás
                 log.exception("Error procesando la cámara %s", cam.id)
         if inicio - t_telemetria >= cfg.procesamiento.intervalo_telemetria_s:
@@ -85,12 +86,14 @@ class Pipeline:
         self._detener.wait(max(restante, 0.005))
         return t_telemetria
 
-    def procesar(self, camara_id: str, imagen, detectores: list[str], nombre: str) -> list:
+    def procesar(self, camara_id: str, imagen, detectores: list[str], nombre: str,
+                 fuente_estatica: bool = False) -> list:
         """Analiza un frame de una cámara y despacha las alarmas que confirme el motor."""
         cfg = self.sistema.config
         t = time.time()
         zonas = self.sistema.zonas(camara_id)
-        ctx, observaciones = self.analizador.analizar(camara_id, imagen, t, cfg, zonas, detectores)
+        ctx, observaciones = self.analizador.analizar(camara_id, imagen, t, cfg, zonas, detectores,
+                                                      fuente_estatica=fuente_estatica)
         disparos = self.sistema.motor.procesar(observaciones)
 
         tiempos = self._tiempos.setdefault(camara_id, deque(maxlen=20))

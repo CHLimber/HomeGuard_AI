@@ -18,13 +18,14 @@ from typing import Any
 from sqlalchemy import delete, select
 
 from homeguard.captura.camaras import GestorCamaras
-from homeguard.config import RUTA_CONFIG, Config, cargar_config, cargar_secretos, ruta_abs
+from homeguard.config import RUTA_CONFIG, CfgCamara, Config, cargar_config, cargar_secretos, ruta_abs
 from homeguard.db import consultas
 from homeguard.db import modelos as m
 from homeguard.db.sesion import BaseDatos
 from homeguard.detectores.base import Zona
 from homeguard.detectores.modelos import Modelos
 from homeguard.pipeline import Pipeline
+from homeguard.pruebas import PREFIJO_PRUEBA
 from homeguard.reglas.motor import Disparo, MotorReglas
 from homeguard.salidas.registro import Registro, codificar_jpeg
 from homeguard.salidas.telegram import EnviadorTelegram, TareaTelegram
@@ -48,7 +49,8 @@ class Sistema:
         self.ruta_config = Path(ruta_config)
         base = cargar_config(self.ruta_config, demo=demo)
         self.bd = BaseDatos(ruta_bd or ruta_abs(base.general.base_datos))
-        self.config: Config = self._config_con_overrides()
+        self.prueba_activa: str | None = None  # cámara de "Prueba con video" que se está reproduciendo
+        self.config: Config = self._con_pruebas(self._config_con_overrides())
         self.secretos = cargar_secretos()
         cfg = self.config
 
@@ -107,7 +109,8 @@ class Sistema:
         return cfg
 
     def _aplicar_config(self, cfg: Config) -> None:
-        self.config = cfg
+        self.config = self._con_pruebas(cfg)
+        cfg = self.config
         self.motor.actualizar_config(cfg.alarmas, cfg.motor)
         self.telegram.cfg = cfg.telegram
         self.camaras.cfg_captura = cfg.captura
@@ -116,6 +119,35 @@ class Sistema:
         log.info("Configuración actualizada")
 
     # -- cámaras y zonas -----------------------------------------------------------
+
+    def _con_pruebas(self, cfg: Config) -> Config:
+        """Agrega a la config los medios de "Prueba con video" como cámaras (activa solo la que se reproduce)."""
+        with self.bd.sesion() as s:
+            medios = s.scalars(select(m.MedioPrueba).order_by(m.MedioPrueba.creado_en)).all()
+        pruebas = {
+            PREFIJO_PRUEBA + medio.id: CfgCamara(
+                nombre=f"Prueba: {medio.nombre}", fuente=medio.ruta, detectores=medio.detectores,
+                activa=PREFIJO_PRUEBA + medio.id == self.prueba_activa,
+                segundos_por_imagen=medio.segundos_por_imagen)
+            for medio in medios}
+        cfg.camaras = {**{k: v for k, v in cfg.camaras.items() if not k.startswith(PREFIJO_PRUEBA)}, **pruebas}
+        return cfg
+
+    def refrescar_camaras(self) -> None:
+        """Vuelve a armar la lista de cámaras (por ejemplo, después de borrar un medio de prueba)."""
+        self._aplicar_config(self.config)
+
+    def reproducir_prueba(self, camara_id: str | None) -> None:
+        """Reproduce un medio de prueba desde el principio (None = detener). Solo uno a la vez."""
+        anterior, self.prueba_activa = self.prueba_activa, camara_id
+        for cid in {anterior, camara_id} - {None}:
+            self.camaras.quitar(cid)            # vuelve a abrir el video desde el primer frame
+            self.pipeline.analizador.reiniciar(cid)
+            self.motor.reiniciar_camara(cid)    # sin cooldown pendiente: la alarma puede volver a sonar
+            self.pipeline.jpeg.pop(cid, None)
+            self.invalidar_zonas(cid)
+        self.refrescar_camaras()
+        log.info("Prueba con video: %s", f"reproduciendo {camara_id}" if camara_id else "detenida")
 
     def _sincronizar_camaras_bd(self) -> None:
         with self.bd.sesion() as s:
@@ -165,6 +197,24 @@ class Sistema:
             if pendientes:
                 log.info("Telegram: %d eventos pendientes re-encolados", len(pendientes))
         self.camaras.sincronizar(self.config.camaras)
+        if self.config.procesamiento.precargar_modelos:
+            # el análisis arranca recién con los modelos listos: así la primera alarma no espera la carga
+            threading.Thread(target=self._precargar_e_iniciar, name="precarga", daemon=True).start()
+        else:
+            self.pipeline.iniciar()
+
+    def _precargar_e_iniciar(self) -> None:
+        import numpy as np
+
+        cfg = self.config
+        inicio = time.time()
+        negro = np.zeros((480, 640, 3), np.uint8)
+        for ruta in (cfg.yolo_general.modelo, cfg.detectores.fuego.modelo, cfg.detectores.caidas.modelo):
+            try:  # la primera inferencia también es lenta (inicializa el grafo): se hace acá, con un frame negro
+                self.modelos.yolo(ruta).predict(negro, imgsz=cfg.procesamiento.imgsz_yolo, verbose=False)
+            except Exception as e:  # noqa: BLE001 - sin un modelo se sigue igual: se cargará (o fallará) al usarlo
+                log.warning("No se pudo precargar %s: %s", ruta, e)
+        log.info("Modelos precargados en %.1f s; empieza el análisis", time.time() - inicio)
         self.pipeline.iniciar()
 
     def detener(self) -> None:
@@ -267,4 +317,5 @@ class Sistema:
 
     def estado_actual(self) -> dict[str, Any]:
         return {"tipo": "estado", "estado": self.motor.estado, "activos": self.motor.activos,
-                "armado": self.motor.armado, "ultimo_evento": self.ultimo_evento, "demo": self.demo}
+                "armado": self.motor.armado, "ultimo_evento": self.ultimo_evento, "demo": self.demo,
+                "prueba_activa": self.prueba_activa}

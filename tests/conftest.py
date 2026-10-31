@@ -53,6 +53,7 @@ def ruta_config_prueba(tmp_path) -> Path:
         "base_datos": str(tmp_path / "prueba.db"),
         "carpeta_eventos": str(tmp_path / "eventos"),
         "carpeta_referencias": str(tmp_path / "referencias"),
+        "carpeta_pruebas": str(tmp_path / "pruebas"),
         "archivo_log": str(tmp_path / "prueba.log"),
     })
     datos["camaras"] = {}

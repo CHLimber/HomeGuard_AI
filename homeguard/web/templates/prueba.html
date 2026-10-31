@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block titulo %}Prueba con video{% endblock %}
+{% block contenido %}
+<div class="cabecera">
+  <h1>Prueba con video <span class="etiqueta" id="etq-activa">sin reproducir</span></h1>
+  <p style="margin:0;max-width:640px;color:var(--tinta-suave)">
+    Modo exposición: subí un video o fotos y el sistema los analiza <b>como si fueran una cámara</b>.
+    Pasan por los mismos detectores y el mismo motor de reglas. Si se confirma la anomalía suena el
+    <a href="/alarma" target="_blank">panel de alarma</a>, llega el Telegram y queda en el Historial.
+  </p>
+</div>
+
+<div class="rejilla dividida">
+  <section class="tarjeta camara">
+    <h3><span id="titulo-video">Elegí una prueba y tocá «Reproducir»</span> <span class="etiqueta" id="estado-video">—</span></h3>
+    <img id="video" alt="Video de la prueba analizado en vivo" src="/static/img/vacio.svg">
+    <div class="lamparas" id="semaforo" style="margin-top:10px"></div>
+    <div class="datos" style="font-size:.85rem;margin-top:6px" id="info-video"></div>
+    <div id="avisos"></div>
+    <div id="ultimo-evento" class="evento-prueba"></div>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Subir una prueba</h2>
+    <form id="form-prueba">
+      <label for="nombre">Nombre (lo que se ve en el panel y en Telegram)</label>
+      <input id="nombre" name="nombre" required maxlength="100" placeholder="Ej.: Vela encendida en la cocina"
+             style="width:100%;margin-bottom:10px">
+
+      <label for="archivos">Un video, o varias fotos (se muestran en orden alfabético: 1.jpg, 2.jpg…)</label>
+      <input id="archivos" name="archivos" type="file" required multiple
+             accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,.mp4,.mov,.avi,.mkv,.webm,.m4v,image/*"
+             style="width:100%;margin-bottom:10px">
+
+      <label>¿Qué anomalía tiene que detectar?</label>
+      <div class="opciones-detector" id="opciones-detector"></div>
+
+      <div id="campo-segundos" style="display:none">
+        <label for="segundos">Segundos por foto</label>
+        <input id="segundos" name="segundos_por_imagen" type="number" min="0.5" step="0.5" value="3"
+               style="width:100px;margin-bottom:10px">
+      </div>
+
+      <label class="casilla"><input type="checkbox" name="zonas_completas" value="true" checked>
+        Usar todo el cuadro como zona (después se puede redibujar en Zonas)</label>
+      <label class="casilla"><input type="checkbox" name="reproducir" value="true" checked>
+        Reproducir apenas se suba</label>
+      <button type="submit" id="btn-subir" style="margin-top:8px">Subir y analizar</button>
+    </form>
+    <div id="resultado"></div>
+  </section>
+</div>
+
+<section class="tarjeta" style="margin-top:16px">
+  <h2>Pruebas guardadas</h2>
+  <table>
+    <thead><tr><th>Nombre</th><th>Tipo</th><th>Anomalías</th><th>Zonas</th><th></th></tr></thead>
+    <tbody id="lista"><tr><td colspan="5" class="vacio">Cargando…</td></tr></tbody>
+  </table>
+</section>
+
+<section class="tarjeta" style="margin-top:16px">
+  <h2>Qué video sirve para cada anomalía</h2>
+  <table class="guia-prueba">
+    <thead><tr><th>Anomalía</th><th>Video</th><th>Con fotos</th></tr></thead>
+    <tbody>
+      <tr><td>🚷 Intrusión</td>
+        <td>Una persona de frente, con la cara visible y grande, durante 1–2 s. Tiene que ser alguien que no esté
+          registrado en Residentes (si no hay residentes, cualquier rostro es desconocido).</td>
+        <td>Sirve: una foto de frente de una persona no registrada.</td></tr>
+      <tr><td>🏊 Piscina</td>
+        <td>Una persona o mascota dentro del agua sin nadie en el borde durante 2 s, o una persona quieta en el agua
+          8 s. Con «todo el cuadro» como zona, alcanza con que aparezca una persona.</td>
+        <td>Sirve: una foto de alguien en una piscina.</td></tr>
+      <tr><td>🔥 Fuego</td>
+        <td>Una llama real con movimiento (vela, fogata, hornalla). Los videos de fuego de internet funcionan bien;
+          un dibujo o una luz naranja no (lo confirma el YOLO de fuego).</td>
+        <td>Sirve: en fotos no se exige movimiento, solo el color (capa 1) y el YOLO de fuego (capa 2).</td></tr>
+      <tr><td>🧍 Caída</td>
+        <td>Cámara fija, una persona de pie que cae al suelo en menos de 1 s y se queda quieta 5 s o más.</td>
+        <td>Sirve: foto 1 de pie y foto 2 en el suelo, en el mismo lugar del cuadro (la 2 se ve 5 s o más).</td></tr>
+      <tr><td>🚪 Puerta</td>
+        <td>Cámara fija: el video empieza con la puerta cerrada (es la referencia) y después se abre y queda abierta
+          2 s o más. Fuera del horario permitido (por defecto se vigila siempre). <b>Dibujá la zona sobre la
+          puerta</b> (botón «Zonas»): tiene que cambiar el 25 % de la zona, y con todo el cuadro solo alcanza si la
+          puerta ocupa casi toda la imagen.</td>
+        <td>Sirve: foto 1 con la puerta cerrada y foto 2 abierta.</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-bottom:0;color:var(--tinta-suave);font-size:.9rem">
+    Consejos: videos MP4 de 10–30 s y 720p o menos (un 4K hace trabajar de más a la laptop). Cada «Reproducir»
+    empieza de cero y borra el cooldown de esa prueba, así la alarma vuelve a sonar en cada demostración. El sistema
+    tiene que estar <b>armado</b>.
+  </p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/prueba.js"></script>
+{% endblock %}

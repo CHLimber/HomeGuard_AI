@@ -198,7 +198,41 @@ Sin compilar, el sistema funciona igual. Compilarlo suma la fila E del benchmark
 
 La DLL tiene que ser de 64 bits, igual que Python.
 
-## 12. Checklist del día de la feria
+## 12. Modo exposición: «Prueba con video» (≈ 1 h para preparar los videos)
+
+En la feria no se puede prender fuego ni tirarse al piso de verdad. Para eso está la página **Prueba con video** del
+dashboard: se sube un video o unas fotos, y el sistema los analiza **como si fueran una cámara más**. Pasan por los
+mismos modelos (YOLO, YuNet/SFace, pose), el mismo motor de reglas y las mismas salidas: suena el panel, llega el
+Telegram y queda en el Historial con sus latencias.
+
+**Preparar antes de la feria** (un video o fotos por anomalía, y probar que cada uno dispare):
+
+| Anomalía | Qué conseguir | Notas |
+|---|---|---|
+| Intrusión | Video o foto de una persona de frente, con la cara grande y visible | Que **no** esté registrada en Residentes |
+| Piscina | Video o foto de alguien dentro de una piscina | Con «todo el cuadro» como zona alcanza con que aparezca una persona 2 s |
+| Fuego | Video de una llama real (vela, fogata, hornalla) o una foto de fuego | Un dibujo o una luz naranja no dispara: lo confirma el YOLO de fuego |
+| Caída | **Video** de alguien de pie que cae al piso y queda quieto 5 s | Con fotos: 1 de pie y 2 en el suelo, en el mismo lugar del cuadro. Una foto rotada no sirve |
+| Puerta | Video con cámara fija: puerta cerrada al principio, después se abre 2 s o más | Fotos: 1 cerrada y 2 abierta. **Dibujar la zona sobre la puerta** |
+
+Los mejores videos son los propios, grabados con la maqueta: muestran que funciona con lo que está en la mesa.
+Videos MP4 de 10–30 s y 720p o menos. Las fotos se muestran en orden alfabético (nómbrenlas `1.jpg`, `2.jpg`…).
+
+**Paso a paso:**
+1. Dashboard → **Prueba con video** → nombre (es lo que se lee en el panel y en Telegram), archivo y anomalía →
+   **Subir y analizar**. Se crea la zona de todo el cuadro y empieza a reproducirse.
+2. Si es una puerta, o si la anomalía tiene que pasar en una parte del cuadro: **Zonas** (botón de la fila) →
+   dibujar → volver y tocar **Reiniciar**.
+3. Con el panel abierto en la tablet: **Reproducir**. A los pocos segundos suena la sirena.
+4. Cada **Reproducir/Reiniciar** empieza el video de cero y borra el cooldown de esa prueba, así se puede repetir la
+   demostración para cada visitante.
+
+Se reproduce una prueba a la vez. Las cámaras reales siguen funcionando al mismo tiempo. Las pruebas quedan
+guardadas (`data/pruebas/`) entre reinicios; los eventos que generan aparecen en el Historial como
+«Prueba: <nombre>». Para el informe, usen `--desde` en `generar_tablas_informe.py` o filtren por cámara, así no se
+mezclan con las mediciones con cámaras reales.
+
+## 13. Checklist del día de la feria
 
 - [ ] Laptop enchufada; en Windows: plan de energía "Alto rendimiento" y suspensión desactivada.
 - [ ] Hotspot encendido; laptop, celulares cámara y tablet del panel conectados a él.
@@ -213,6 +247,7 @@ La DLL tiene que ser de 64 bits, igual que Python.
 - [ ] Historial limpio para la demo: si quieren empezar de cero, cerrar el programa y borrar `data/homeguard.db` y
       `data/eventos/*.jpg`. **Ojo: esto borra también residentes y zonas**; para conservarlos, solo filtrá el
       historial por fecha.
+- [ ] **Prueba con video**: cada prueba guardada dispara su alarma (tocar Reproducir en cada una).
 - [ ] Plan B sin cámaras: `python run.py --demo` (la puerta sintética dispara la alarma cada vuelta pasado el
       cooldown de 30 s).
 

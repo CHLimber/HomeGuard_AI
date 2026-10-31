@@ -85,8 +85,9 @@ funcione en una demo en vivo**.
     **operaciones con escalar con NumPy**, porque `cv2.bitwise_and(img, escalar)` falla con imágenes muy chicas
     (OpenCV interpreta el escalar como una matriz 4x1).
 28. **El benchmark compara 5 variantes y se publica tal cual dio.** El HSV nativo de OpenCV resultó un poco más rápido
-    que la LUT RGB332 a igual área. Se documenta y se explica en BITWISE.md en lugar de esconderlo. El aporte
-    medible está en vectorizar (~200x) y en el ROI con AND (~3x).
+    que la LUT a igual área. Se documenta y se explica en BITWISE.md en lugar de esconderlo. El aporte
+    medible está en vectorizar (~80x con el índice de 9 bits; ~200x con RGB332) y en el ROI con AND (~2,5–3x).
+    El benchmark usa el mismo índice de color que el detector (`modo_capa1`).
 
 ## Salidas, web y latencia
 
@@ -156,3 +157,25 @@ funcione en una demo en vivo**.
     ángulo del torso, proporción de píxeles, byte de estado, regla de fuego, binomial N de M, P/R/F1, latencias,
     tamaño de fotograma, índice de color e instrucciones SIMD. Así el jurado puede ir del Word al código. La IoU
     no aparece en el código propio porque la calcula ByteTrack internamente.
+
+## Modo exposición
+
+46. **«Prueba con video» = cámaras virtuales.** Cada video o serie de fotos subido se guarda en
+    `general.carpeta_pruebas/<id>/`, se registra en la tabla `medio_prueba` y el Sistema lo agrega a la config como
+    la cámara `prueba_<id>`. Así pasa por exactamente el mismo camino que una cámara real (captura → analizador →
+    motor → panel/Telegram/BD) y no hay un "modo demo" con lógica aparte que el jurado pueda objetar. Se reproduce
+    una a la vez. No se mezclan con las cámaras de config.yaml: no aparecen en Configuración y no se pueden editar
+    como overrides.
+47. **Fotos como presentación** (fuente = carpeta de imágenes, cada una `segundos_por_imagen`). Con una sola foto,
+    fuego, caída y puerta no pueden disparar: fuego exige movimiento, caída un descenso y puerta un cambio contra
+    la referencia. Una serie (cerrada → abierta, de pie → en el suelo) sí. Para el fuego, una cámara de imágenes
+    marca `fuente_estatica` y la capa 1 usa solo el color (sin el AND con el movimiento XOR); la capa 2 YOLO
+    confirma igual. Se verificó con modelos reales: foto de fogata → capa 1 57,8 %, YOLO 0,64 → alarma.
+48. **«Reproducir» borra votos y cooldown de esa cámara** (`MotorReglas.reiniciar_camara`), para poder repetir la
+    demostración en cada visita. No toca las demás cámaras.
+49. **Zona de cuadro completo por defecto.** Sirve para intrusión, piscina y fuego. Para la puerta casi nunca:
+    tiene que cambiar el 25 % de la zona, y una puerta que ocupa una franja del cuadro cambia ~10 %. La página lo
+    avisa y lleva a Zonas para dibujarla.
+50. **Precarga de modelos al arrancar** (`procesamiento.precargar_modelos`). Cargar y hacer la primera inferencia
+    de los tres YOLO tarda ~5 s; sin precarga, la primera alarma del día se demoraba eso. El análisis empieza
+    cuando los modelos están listos (el servidor y las cámaras arrancan antes).

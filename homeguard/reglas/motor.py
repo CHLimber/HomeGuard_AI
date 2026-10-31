@@ -155,6 +155,13 @@ class MotorReglas:
                     byte = est.activar(byte, tipo)
         return byte
 
+    def reiniciar_camara(self, camara_id: str) -> None:
+        """Olvida votos y cooldowns de una cámara: al reproducir una prueba, la alarma puede volver a sonar."""
+        with self._lock:
+            for tabla in (self._ventanas, self._ultimo_disparo, self._ultima_obs):
+                for clave in [c for c in tabla if c[1] == camara_id]:
+                    del tabla[clave]
+
     def reiniciar(self) -> None:
         with self._lock:
             self.estado = 0

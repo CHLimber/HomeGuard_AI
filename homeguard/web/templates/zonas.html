@@ -127,6 +127,10 @@ document.getElementById("btn-guardar").onclick = async () => {
     cargarZonas();
   } catch (e) { mensaje(e.message, false); }
 };
+// desde "Prueba con video" se llega con ?camara=<id> para dibujar las zonas de esa prueba
+const pedida = new URLSearchParams(location.search).get("camara");
+if (pedida && [...document.getElementById("camara").options].some(o => o.value === pedida))
+  document.getElementById("camara").value = pedida;
 congelar();
 cargarZonas();
 </script>

@@ -87,6 +87,10 @@ def crear_app(sistema: Sistema, iniciar_sistema: bool = True) -> FastAPI:
     def configuracion(request: Request):
         return pagina("configuracion.html", request, seccion="configuracion")
 
+    @app.get("/prueba", include_in_schema=False)
+    def prueba(request: Request):
+        return pagina("prueba.html", request, seccion="prueba")
+
     @app.get("/historial", include_in_schema=False)
     def historial(request: Request):
         return pagina("historial.html", request, seccion="historial")

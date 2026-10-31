@@ -32,7 +32,7 @@
   bits altos ≡ `(x>>s)<<s`), índice RGB332 (`&`, `>>`, `|`) + `cv2.LUT`, XOR de binarizadas (puerta).
 - Integrado: el analizador calcula la máscara de movimiento XOR en cada frame; la puerta usa AND/XOR.
 - `python -m homeguard.preproceso.benchmark` → `docs/BENCHMARK.md` + `docs/benchmark.csv` (5 variantes).
-  Resultado real: vectorizar ≈ 200x, ROI ≈ 3x; a igual área el HSV nativo de OpenCV es algo más rápido
+  Resultado real: vectorizar ≈ 200x con RGB332 (≈ 80x con el índice de 9 bits, re-medido el 31/10), ROI ≈ 3x; a igual área el HSV nativo de OpenCV es algo más rápido
   que la LUT RGB332 (documentado tal cual en `docs/BITWISE.md`).
 - 35 tests OK.
 
@@ -85,6 +85,15 @@
 - `scripts/generar_tablas_informe.py` → `docs/informe/` (benchmark, P/R/F1, latencias; "Por medir" si no hay datos).
 - GUIA_GRUPO: capturas del Anexo J y cómo compilar la Fase 7.
 - Comentarios `# Informe, ecuación de …` en cada fórmula.
+
+## Modo exposición: «Prueba con video» (31/10/2026)
+- Página `/prueba`: subir un video o fotos, elegir la anomalía, reproducir/reiniciar/detener/borrar. Cada medio es
+  una cámara virtual `prueba_<id>` que pasa por el pipeline real. Fotos = presentación en bucle.
+- Fuego en imagen fija sin exigir movimiento; «Reproducir» reinicia el cooldown de esa cámara; precarga de modelos.
+- Verificado con modelos reales por HTTP (servidor real, panel por WebSocket con ack): foto de persona sin
+  registrar → intrusión en ~1 s, foto de personas en el agua → piscina a los 2,9 s, foto de fogata → fuego a los
+  0,8 s; latencias al panel 4–8 ms. 104 tests OK (25 saltados: DLL nativa sin compilar).
+- Caídas y puerta con fotos/video se probaron con el video sintético (tests); con video real lo prueba el grupo.
 
 ## Fase 7 (opcional)
 - `nativo/bitwise_simd.c` (XOR/AND con SSE2 y AVX2, detección de CPU, fallback escalar), `compilar.bat`/`.sh`,

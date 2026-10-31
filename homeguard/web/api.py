@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from homeguard.config import RUTA_CONFIG, TIPOS_ZONA, aplanar, leer_comentarios, ruta_abs
+from homeguard import pruebas
 from homeguard.db import modelos as m
 from homeguard.reglas.estado import BIT_POR_TIPO
 from homeguard.reglas.motor import probabilidad_falsa_alarma
@@ -123,13 +124,15 @@ def camaras(request: Request) -> dict:
     return {"camaras": [
         {"id": cid, "nombre": c.nombre, "fuente": str(c.fuente), "activa": c.activa, "detectores": c.detectores,
          **{k: v for k, v in activas.get(cid, {}).items() if k not in ("id", "nombre", "fuente")}}
-        for cid, c in sis.config.camaras.items()]}
+        for cid, c in sis.config.camaras.items() if not cid.startswith(pruebas.PREFIJO_PRUEBA)]}
 
 
 @router.post("/camaras/{camara_id}")
 def editar_camara(camara_id: str, datos: dict[str, Any], request: Request) -> dict:
     """Cambia la fuente (índice/URL/archivo) y/o si está activa. Se guarda como override y la cámara se reinicia."""
     sis = _sis(request)
+    if camara_id.startswith(pruebas.PREFIJO_PRUEBA):
+        raise HTTPException(400, "las cámaras de prueba se manejan desde «Prueba con video»")
     if camara_id not in sis.config.camaras:
         raise HTTPException(404, "cámara desconocida")
     cambios: dict[str, Any] = {}
@@ -145,6 +148,67 @@ def editar_camara(camara_id: str, datos: dict[str, Any], request: Request) -> di
         sis.actualizar_overrides(cambios)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
+# -- prueba con video (modo exposición) ---------------------------------------------------
+
+@router.get("/pruebas")
+def listar_pruebas(request: Request) -> dict:
+    sis = _sis(request)
+    medios = pruebas.listar_medios(sis.bd)
+    for medio in medios:
+        medio["activa"] = medio["camara_id"] == sis.prueba_activa
+    return {"medios": medios, "activa": sis.prueba_activa, "armado": sis.motor.armado,
+            "residentes": getattr(sis.pipeline.analizador.detectores.get("rostros"), "cantidad_residentes", 0),
+            "max_mb": sis.config.general.max_mb_prueba}
+
+
+@router.post("/pruebas")
+async def crear_prueba(request: Request, nombre: str = Form(...), detectores: list[str] = Form([]),
+                       segundos_por_imagen: float = Form(3.0), zonas_completas: bool = Form(True),
+                       reproducir: bool = Form(True), archivos: list[UploadFile] = File(...)) -> dict:
+    """Sube un video o imágenes; quedan como una cámara más que se puede reproducir en la exposición."""
+    from starlette.concurrency import run_in_threadpool
+
+    sis = _sis(request)
+    contenidos = [(f.filename or "archivo", f.file) for f in archivos]
+    try:
+        medio = await run_in_threadpool(pruebas.crear_medio, sis.bd, sis.config, nombre, contenidos, detectores,
+                                        segundos_por_imagen, zonas_completas)
+    except pruebas.ErrorPrueba as e:
+        raise HTTPException(400, str(e)) from e
+    await run_in_threadpool(sis.reproducir_prueba, medio["camara_id"] if reproducir else sis.prueba_activa)
+    return medio
+
+
+@router.post("/pruebas/{medio_id}/reproducir")
+def reproducir_prueba(medio_id: str, request: Request) -> dict:
+    """Reproduce el medio desde el principio, con votos y cooldown de esa cámara en cero."""
+    sis = _sis(request)
+    camara_id = pruebas.PREFIJO_PRUEBA + medio_id
+    if camara_id not in sis.config.camaras:
+        raise HTTPException(404, "prueba inexistente")
+    sis.reproducir_prueba(camara_id)
+    return {"activa": camara_id}
+
+
+@router.post("/pruebas/detener")
+def detener_prueba(request: Request) -> dict:
+    _sis(request).reproducir_prueba(None)
+    return {"activa": None}
+
+
+@router.delete("/pruebas/{medio_id}")
+def borrar_prueba(medio_id: str, request: Request) -> dict:
+    sis = _sis(request)
+    camara_id = pruebas.PREFIJO_PRUEBA + medio_id
+    if sis.prueba_activa == camara_id:
+        sis.reproducir_prueba(None)
+    if not pruebas.borrar_medio(sis.bd, sis.config, medio_id):
+        raise HTTPException(404, "prueba inexistente")
+    sis.invalidar_zonas(camara_id)
+    sis.refrescar_camaras()  # quita la cámara borrada de la config
     return {"ok": True}
 
 

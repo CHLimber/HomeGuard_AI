@@ -88,7 +88,9 @@ class DetectorFuego(Detector):
             x0, y0, x1, y1 = bitwise.bbox_poligono(zona.puntos_px(ctx.ancho, ctx.alto), ctx.alto, ctx.ancho)
             roi = ctx.mascara_zona(zona)[y0:y1, x0:x1]
             color = self._mascara_color(frame[y0:y1, x0:x1], cfg, lut)
-            if ctx.mascara_movimiento is None:  # primer frame: todavía no hay movimiento
+            if ctx.fuente_estatica:  # imagen fija: no hay movimiento que exigir, la capa 1 usa solo el color
+                pct_color_mov = bitwise.porcentaje_activos(color, roi)
+            elif ctx.mascara_movimiento is None:  # primer frame: todavía no hay movimiento
                 pct_color_mov = 0.0
             else:
                 mov = ctx.mascara_movimiento[y0:y1, x0:x1]
@@ -113,6 +115,7 @@ class DetectorFuego(Detector):
                 "capa1_pct_color": round(pct_color, 2),
                 "capa1_pct_color_y_movimiento": round(pct_color_mov, 2),
                 "umbral_capa1_pct": cfg.umbral_capa1_pct,
+                "imagen_fija": ctx.fuente_estatica,
                 "capa2_ejecutada": capa1,
                 "capa2_confianza": round(conf2, 2),
                 "umbral_capa2": cfg.confianza_capa2,

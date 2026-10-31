@@ -70,6 +70,12 @@ del YAML (`leer_comentarios`). **Todo umbral nuevo va en `config.yaml` con un co
 al panel. Si el ack del panel llega antes que el INSERT, queda en `_acks_anticipados`. La latencia al panel es
 `ack − t_detección`, y por eso es una cota superior.
 
+**Prueba con video (modo exposición).** `homeguard/pruebas.py` guarda los medios subidos (tabla `medio_prueba`,
+archivos en `general.carpeta_pruebas`). `Sistema._con_pruebas()` los agrega a `config.camaras` como `prueba_<id>`
+cada vez que se aplica la config; solo `Sistema.prueba_activa` está activa. Una fuente que es carpeta se reproduce
+como presentación (`tipo_fuente == "imagenes"`) y el pipeline pasa `fuente_estatica=True`: fuego no exige movimiento.
+`/api/camaras` y la edición de cámaras ignoran las `prueba_*`.
+
 **Código compartido con los scripts.** `analizador.py` y `db/consultas.py` (overrides, zonas, embeddings) los usan el
 sistema en vivo y `scripts/evaluar_detector.py`. Los evaluadores escriben en `docs/PRUEBAS.md` entre los marcadores
 `<!-- detector:INICIO/FIN -->`.

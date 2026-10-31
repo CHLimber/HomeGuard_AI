@@ -7,7 +7,8 @@ Variantes:
   A. Bucle Python píxel a píxel (línea base, mismo algoritmo de bits que C y D)
   B. OpenCV clásico sin ROI: HSV + inRange + absdiff sobre el frame completo
   B2. OpenCV clásico con ROI: lo mismo que B pero solo en el recorte de la zona
-  C. Bits vectorizados sin ROI: cuantización (AND 0xF0) + XOR + índice RGB332 (>>, |) + LUT
+  C. Bits vectorizados sin ROI: cuantización (AND 0xF0) + XOR + índice de color (>>, <<, |) + LUT
+     (el índice es el de `detectores.fuego.modo_capa1`: 9 bits del informe por defecto, o RGB332)
   D. Bits vectorizados con ROI: recorte a la zona + C + AND con la máscara ROI (lo que usa HomeGuard)
   E. Como D, pero el XOR y los AND los hace C con SIMD (SSE2/AVX2, nativo/bitwise_simd.c).
      Solo aparece si la librería está compilada (Fase 7, opcional).
@@ -59,7 +60,10 @@ class Preparado:
     def __init__(self, alto: int, ancho: int, cfg) -> None:
         f = cfg.detectores.fuego
         self.bits_mov = cfg.preproceso.bits_movimiento
-        self.lut = bw.construir_lut_fuego(f.hue_min, f.hue_max, f.sat_min, f.val_min)
+        # mismo índice de color que el detector: 9 bits (informe, tabla de 512) o RGB332 (tabla de 256)
+        self.nueve_bits = f.modo_capa1 != "lut332"
+        construir = bw.construir_lut_fuego_9bits if self.nueve_bits else bw.construir_lut_fuego
+        self.lut = construir(f.hue_min, f.hue_max, f.sat_min, f.val_min)
         self.hsv_min = np.array([f.hue_min, f.sat_min, f.val_min], np.uint8)
         self.hsv_max = np.array([f.hue_max, 255, 255], np.uint8)
         pts = (np.array(ZONA_NORM) * [ancho, alto]).round().astype(np.int32)
@@ -95,7 +99,10 @@ def variante_a_bucle(prev: np.ndarray, act: np.ndarray, p: Preparado) -> float:
             gris = (9798 * r + 19235 * g + 3735 * b + 16384) >> 15
             gris_p = (9798 * rp + 19235 * gp + 3735 * bp + 16384) >> 15
             movio = (gris & mascara_q) ^ (gris_p & mascara_q)
-            indice = (r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6)
+            if p.nueve_bits:  # Informe, ecuación del índice de color: ((R>>5)<<6) | ((G>>5)<<3) | (B>>5)
+                indice = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5)
+            else:
+                indice = (r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6)
             if movio and lut[indice]:
                 activos += 1
     return 100.0 * activos / total if total else 0.0
@@ -119,10 +126,14 @@ def variante_b2_clasica_roi(prev: np.ndarray, act: np.ndarray, p: Preparado) -> 
     return _clasica(prev[y0:y1, x0:x1], act[y0:y1, x0:x1], p, p.roi_recorte)
 
 
+def _mascara_color(bgr: np.ndarray, p: Preparado) -> np.ndarray:
+    return bw.mascara_color_lut9(bgr, p.lut) if p.nueve_bits else bw.mascara_color_lut(bgr, p.lut)
+
+
 def _bits(prev: np.ndarray, act: np.ndarray, p: Preparado, roi: np.ndarray) -> float:
     mov = bw.mascara_movimiento_xor(cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY), cv2.cvtColor(act, cv2.COLOR_BGR2GRAY),
                                     p.bits_mov, apertura_px=0)
-    color = bw.mascara_color_lut(act, p.lut)
+    color = _mascara_color(act, p)
     return bw.porcentaje_activos(bw.combinar_mascaras(color, mov, roi, modo="and"), roi)
 
 
@@ -142,7 +153,7 @@ def variante_e_simd_c(prev: np.ndarray, act: np.ndarray, p: Preparado) -> float:
     x0, y0, x1, y1 = p.bbox
     gris_prev = cv2.cvtColor(prev[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
     gris_act = cv2.cvtColor(act[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
-    color = bw.mascara_color_lut(act[y0:y1, x0:x1], p.lut)
+    color = _mascara_color(act[y0:y1, x0:x1], p)
     # (a XOR b) AND color: distinto de 0 solo donde cambiaron los bits altos y el color es fuego
     m = nativo.xor_and(bw.cuantizar(gris_prev, p.bits_mov), bw.cuantizar(gris_act, p.bits_mov), color)
     m = nativo.and_(m, p.roi_recorte, salida=m)  # AND zona
@@ -220,7 +231,8 @@ def _escribir_markdown(ruta: Path, filas: list[dict], forma: tuple, p: Preparado
         "",
         f"Tarea: capa 1 del detector de fuego (color fuego AND movimiento dentro de la zona) sobre frames de "
         f"{forma[1]}x{forma[0]} del video sintético `fuego.mp4`. La zona ocupa el {zona_pct:.0f} % del frame "
-        f"(recorte {x1 - x0}x{y1 - y0}).",
+        f"(recorte {x1 - x0}x{y1 - y0}). Índice de color de A, C y D: "
+        + ("9 bits del informe (tabla de 512)." if p.nueve_bits else "RGB332 de 8 bits (tabla de 256)."),
         "",
         "| Variante | Descripción | ms/frame (mediana) | FPS equivalentes | Aceleración vs A | Resultado (% zona) |",
         "|---|---|---:|---:|---:|---:|",
@@ -236,7 +248,7 @@ def _escribir_markdown(ruta: Path, filas: list[dict], forma: tuple, p: Preparado
         "Es la diferencia más grande y la razón por la que el sistema puede analizar video en tiempo real.",
         "- **C vs D** y **B vs B2** — ROI: procesar solo el recorte de la zona (y anular el resto con AND) ahorra "
         "aproximadamente en proporción al área que se descarta.",
-        "- **B2 vs D** — bits vs HSV a igual área: compara la cuantización con AND + índice RGB332 + LUT contra la "
+        "- **B2 vs D** — bits vs HSV a igual área: compara la cuantización con AND + índice de color + LUT contra la "
         "conversión HSV optimizada de OpenCV. Ver el resultado en la tabla: si la diferencia es chica, la ventaja de la LUT "
         "no es la velocidad sino que cualquier regla de color (por compleja que sea) cuesta lo mismo: una búsqueda por píxel.",
         "- A, C y D usan exactamente las mismas operaciones de bits, por eso dan el mismo resultado; "

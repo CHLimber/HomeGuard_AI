@@ -119,6 +119,7 @@ class Contexto:
         frame_original: np.ndarray | None = None,
         hora: datetime | None = None,
         detector_general: Callable[[np.ndarray], sv.Detections] | None = None,
+        fuente_estatica: bool = False,
     ) -> None:
         self.camara_id = camara_id
         self.frame = frame
@@ -130,6 +131,8 @@ class Contexto:
         self.estado = estado
         self.gris = gris
         self.mascara_movimiento = mascara_movimiento
+        # imagen fija (presentación de "Prueba con video"): no hay movimiento entre frames
+        self.fuente_estatica = fuente_estatica
         self.alto, self.ancho = frame.shape[:2]
         self._detector_general = detector_general
         self._detecciones: sv.Detections | None = None
