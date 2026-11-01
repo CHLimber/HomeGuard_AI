@@ -94,10 +94,17 @@ document.getElementById("form-prueba").addEventListener("submit", async ev => {
     res.innerHTML = `<div class="mensaje error">Elegí al menos una anomalía.</div>`;
     return;
   }
+  const hayArchivos = [...document.getElementById("archivos").files].length > 0;
+  const hayEnlace = form.get("enlace").trim() !== "";
+  if (hayArchivos === hayEnlace) {
+    res.innerHTML = `<div class="mensaje error">${hayArchivos ? "Elegí archivos o pegá un enlace, no los dos." : "Subí un archivo o pegá un enlace."}</div>`;
+    return;
+  }
+  form.delete(hayEnlace ? "archivos" : "enlace");
   // las casillas sin marcar no se envían: se mandan explícitas como false
   for (const casilla of ["zonas_completas", "reproducir"]) if (!form.has(casilla)) form.append(casilla, "false");
   const boton = document.getElementById("btn-subir");
-  boton.disabled = true; boton.textContent = "Subiendo…";
+  boton.disabled = true; boton.textContent = hayEnlace ? "Descargando…" : "Subiendo…";
   try {
     const m = await api("/api/pruebas", { method: "POST", body: form });
     const extra = m.tipo === "video" ? `${m.resolucion}, ${m.duracion_s ?? "?"} s` : `${m.imagenes} foto(s), ${m.resolucion}`;
@@ -108,8 +115,7 @@ document.getElementById("form-prueba").addEventListener("submit", async ev => {
   } catch (e) {
     res.innerHTML = `<div class="mensaje error">No se pudo subir: ${escapar(e.message)}</div>`;
   } finally {
-    boton.disabled = false; boton.textContent = "Subir y analizar";
-  }
+    boton.disabled = false; boton.textContent = "Subir y analizar";  }
 });
 
 alTelemetria.push(t => {

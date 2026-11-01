@@ -14,6 +14,7 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import Any, BinaryIO
+from urllib.parse import urlsplit
 
 import cv2
 from sqlalchemy import delete, select
@@ -90,9 +91,7 @@ def crear_medio(bd: BaseDatos, cfg: Config, nombre: str, archivos: list[tuple[st
         raise ErrorPrueba("subí un video (" + ", ".join(EXTENSIONES_VIDEO) + ") o imágenes ("
                           + ", ".join(EXTENSIONES_IMAGEN) + "), sin mezclar")
 
-    medio_id = uuid.uuid4().hex[:10]
-    carpeta = ruta_abs(cfg.general.carpeta_pruebas) / medio_id
-    carpeta.mkdir(parents=True, exist_ok=True)
+    medio_id, carpeta = _nueva_carpeta(cfg)
     restante = int(cfg.general.max_mb_prueba * 1024 * 1024)
     try:
         if tipo == "video":
@@ -114,7 +113,18 @@ def crear_medio(bd: BaseDatos, cfg: Config, nombre: str, archivos: list[tuple[st
     except Exception:
         shutil.rmtree(carpeta, ignore_errors=True)
         raise
+    return _registrar_medio(bd, medio_id, nombre, tipo, ruta, detectores, segundos_por_imagen, zonas_completas, info)
 
+
+def _nueva_carpeta(cfg: Config) -> tuple[str, Path]:
+    medio_id = uuid.uuid4().hex[:10]
+    carpeta = ruta_abs(cfg.general.carpeta_pruebas) / medio_id
+    carpeta.mkdir(parents=True, exist_ok=True)
+    return medio_id, carpeta
+
+
+def _registrar_medio(bd: BaseDatos, medio_id: str, nombre: str, tipo: str, ruta: Path, detectores: list[str],
+                     segundos_por_imagen: float, zonas_completas: bool, info: dict[str, Any]) -> dict[str, Any]:
     camara_id = PREFIJO_PRUEBA + medio_id
     with bd.sesion() as s:
         s.add(m.MedioPrueba(id=medio_id, nombre=nombre, tipo=tipo, ruta=str(ruta), detectores=detectores,
@@ -129,6 +139,92 @@ def crear_medio(bd: BaseDatos, cfg: Config, nombre: str, archivos: list[tuple[st
     log.info("Prueba con video: nuevo medio %s (%s, %s)", camara_id, tipo, ", ".join(detectores))
     return {"id": medio_id, "camara_id": camara_id, "nombre": nombre, "tipo": tipo, "detectores": detectores,
             **info}
+
+
+# -- video desde un enlace ---------------------------------------------------------------
+
+HOSTS_YOUTUBE = ("youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be")
+TIMEOUT_ENLACE_S = 15
+TIPOS_MIME_VIDEO = {"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov",
+                    "video/x-matroska": ".mkv", "video/x-msvideo": ".avi"}
+
+
+def _descargar_directo(url: str, carpeta: Path, restante: int) -> Path:
+    """Descarga un archivo de video por HTTP(S), por bloques y con el mismo límite de tamaño que la subida."""
+    import requests
+
+    try:
+        with requests.get(url, stream=True, timeout=TIMEOUT_ENLACE_S, headers={"User-Agent": "HomeGuardAI"}) as r:
+            r.raise_for_status()
+            mime = r.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if mime.startswith("text/"):
+                raise ErrorPrueba("el enlace es una página web, no un video (si es de YouTube pegá el link del video)")
+            ext = Path(url.split("?", 1)[0]).suffix.lower()
+            if ext not in EXTENSIONES_VIDEO:
+                ext = TIPOS_MIME_VIDEO.get(mime, ".mp4")
+            ruta = carpeta / f"video{ext}"
+            escritos = 0
+            with ruta.open("wb") as f:
+                for bloque in r.iter_content(TAMANO_BLOQUE):
+                    escritos += len(bloque)
+                    if escritos > restante:
+                        raise ErrorPrueba("el video supera el tamaño máximo (general.max_mb_prueba)")
+                    f.write(bloque)
+            return ruta
+    except requests.RequestException as e:
+        raise ErrorPrueba(f"no se pudo descargar el enlace: {e}") from e
+
+
+def _descargar_youtube(url: str, carpeta: Path, restante: int) -> Path:
+    """Descarga un video de YouTube con yt-dlp (opcional): solo la imagen (sin audio, no hace falta ni ffmpeg), de 720p o menos."""
+    try:
+        import yt_dlp
+    except ImportError as e:
+        raise ErrorPrueba("para enlaces de YouTube falta instalar yt-dlp (pip install yt-dlp)") from e
+    # YouTube casi nunca ofrece un archivo con imagen y audio juntos: se pide solo el video, de preferencia H.264 (OpenCV
+    # lo lee siempre; VP9/AV1 no) y por https directo. Los últimos formatos son el respaldo si no hay H.264.
+    opciones = {"format": "bv[height<=720][vcodec^=avc1][protocol^=https]/bv[height<=720][vcodec^=avc1]"
+                          "/bv[height<=720][ext=mp4]/b[height<=720]/bv[height<=720]/b",
+                "noplaylist": True, "quiet": True, "noprogress": True,
+                "no_warnings": True, "outtmpl": str(carpeta / "video.%(ext)s"), "max_filesize": restante,
+                "socket_timeout": TIMEOUT_ENLACE_S}
+    try:
+        with yt_dlp.YoutubeDL(opciones) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as e:
+        raise ErrorPrueba(f"no se pudo descargar el video de YouTube: {str(e).splitlines()[-1]}") from e
+    descargados = [p for p in carpeta.iterdir() if p.suffix.lower() in EXTENSIONES_VIDEO]
+    if not descargados:
+        raise ErrorPrueba("no se descargó ningún video (¿supera general.max_mb_prueba?)")
+    return descargados[0]
+
+
+def crear_medio_enlace(bd: BaseDatos, cfg: Config, nombre: str, enlace: str, detectores: list[str],
+                       zonas_completas: bool = True) -> dict[str, Any]:
+    """Descarga el video de un enlace (directo o de YouTube) y lo registra como medio de prueba.
+
+    Queda guardado en disco igual que uno subido: después se reproduce sin internet.
+    """
+    nombre, enlace = nombre.strip(), enlace.strip()
+    if not nombre:
+        raise ErrorPrueba("falta el nombre")
+    detectores = [d for d in DETECTORES if d in detectores]
+    if not detectores:
+        raise ErrorPrueba("elegí al menos una anomalía para analizar")
+    partes = urlsplit(enlace)
+    if partes.scheme not in ("http", "https") or not partes.hostname:
+        raise ErrorPrueba("el enlace tiene que empezar con http:// o https://")
+
+    medio_id, carpeta = _nueva_carpeta(cfg)
+    restante = int(cfg.general.max_mb_prueba * 1024 * 1024)
+    try:
+        descargar = _descargar_youtube if partes.hostname.lower() in HOSTS_YOUTUBE else _descargar_directo
+        ruta = descargar(enlace, carpeta, restante)
+        info = info_video(ruta)
+    except Exception:
+        shutil.rmtree(carpeta, ignore_errors=True)
+        raise
+    return _registrar_medio(bd, medio_id, nombre, "video", ruta, detectores, 3.0, zonas_completas, info)
 
 
 def listar_medios(bd: BaseDatos) -> list[dict[str, Any]]:

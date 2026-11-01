@@ -167,15 +167,20 @@ def listar_pruebas(request: Request) -> dict:
 @router.post("/pruebas")
 async def crear_prueba(request: Request, nombre: str = Form(...), detectores: list[str] = Form([]),
                        segundos_por_imagen: float = Form(3.0), zonas_completas: bool = Form(True),
-                       reproducir: bool = Form(True), archivos: list[UploadFile] = File(...)) -> dict:
-    """Sube un video o imágenes; quedan como una cámara más que se puede reproducir en la exposición."""
+                       reproducir: bool = Form(True), enlace: str = Form(""),
+                       archivos: list[UploadFile] = File([])) -> dict:
+    """Sube un video o imágenes (o descarga un video desde un enlace); queda como una cámara más para reproducir."""
     from starlette.concurrency import run_in_threadpool
 
     sis = _sis(request)
-    contenidos = [(f.filename or "archivo", f.file) for f in archivos]
     try:
-        medio = await run_in_threadpool(pruebas.crear_medio, sis.bd, sis.config, nombre, contenidos, detectores,
-                                        segundos_por_imagen, zonas_completas)
+        if enlace.strip():
+            medio = await run_in_threadpool(pruebas.crear_medio_enlace, sis.bd, sis.config, nombre, enlace,
+                                            detectores, zonas_completas)
+        else:
+            contenidos = [(f.filename or "archivo", f.file) for f in archivos]
+            medio = await run_in_threadpool(pruebas.crear_medio, sis.bd, sis.config, nombre, contenidos,
+                                            detectores, segundos_por_imagen, zonas_completas)
     except pruebas.ErrorPrueba as e:
         raise HTTPException(400, str(e)) from e
     await run_in_threadpool(sis.reproducir_prueba, medio["camara_id"] if reproducir else sis.prueba_activa)

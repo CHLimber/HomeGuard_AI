@@ -179,3 +179,8 @@ funcione en una demo en vivo**.
 50. **Precarga de modelos al arrancar** (`procesamiento.precargar_modelos`). Cargar y hacer la primera inferencia
     de los tres YOLO tarda ~5 s; sin precarga, la primera alarma del día se demoraba eso. El análisis empieza
     cuando los modelos están listos (el servidor y las cámaras arrancan antes).
+51. **Prueba con video desde un enlace.** En vez de subir el archivo se puede pegar un enlace: un link directo a un
+    video (se descarga con `requests`, con el mismo tope `general.max_mb_prueba`) o uno de YouTube (se descarga con
+    `yt-dlp`, MP4 de 720p o menos). Siempre se guarda en disco como un medio subido, así que la reproducción no
+    depende de internet ni de que el link siga vivo en la feria. `yt-dlp` es opcional: sin él, solo falla el alta
+    desde YouTube, con un aviso. No se reproduce el enlace en vivo porque YouTube no entrega un stream que OpenCV lea.

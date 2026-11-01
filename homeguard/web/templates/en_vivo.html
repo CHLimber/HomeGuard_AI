@@ -15,19 +15,44 @@
 <div class="lamparas" id="semaforo" style="margin-bottom:18px"></div>
 
 <div class="rejilla">
-  {% for cid, cam in camaras.items() if cam.activa %}
+  {% for cid, cam in camaras.items() if cam.activa or not cid.startswith("prueba_") %}
   <section class="tarjeta camara">
-    <h3>{{ cam.nombre }} <span class="etiqueta" id="estado-{{ cid }}">…</span></h3>
+    <h3>{{ cam.nombre }}
+      <span>
+        {% if cam.activa %}<span class="etiqueta" id="estado-{{ cid }}">…</span>
+        {% else %}<span class="etiqueta">detenida</span>{% endif %}
+        {% if not cid.startswith("prueba_") %}
+        <button class="secundario" onclick="alternarCamara('{{ cid }}', {{ 'false' if cam.activa else 'true' }})">
+          {{ "■ Detener" if cam.activa else "▶ Activar" }}</button>
+        {% endif %}
+      </span>
+    </h3>
+    {% if cam.activa %}
     <img src="/stream/{{ cid }}" alt="Video en vivo de {{ cam.nombre }}">
     <div class="datos" style="font-size:.85rem;margin-top:6px" id="info-{{ cid }}"></div>
+    {% else %}
+    <p class="vacio">Cámara detenida. No se analiza ni genera alarmas.</p>
+    {% endif %}
   </section>
   {% else %}
   <p class="vacio">No hay cámaras activas. Activá alguna en Configuración o en config.yaml.</p>
   {% endfor %}
 </div>
+<div id="mensaje"></div>
 {% endblock %}
 {% block scripts %}
 <script>
+// Detiene o reactiva una cámara (se guarda como override, igual que en Configuración) y recarga la rejilla.
+async function alternarCamara(id, activa) {
+  try {
+    await api(`/api/camaras/${id}`, { method: "POST", headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ activa }) });
+    location.reload();
+  } catch (e) {
+    document.getElementById("mensaje").innerHTML = `<div class="mensaje error">${escapar(e.message)}</div>`;
+  }
+}
+
 const semaforo = document.getElementById("semaforo");
 dibujarLamparas(semaforo);
 alArmado.push(armado => {

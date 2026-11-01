@@ -28,8 +28,13 @@
              style="width:100%;margin-bottom:10px">
 
       <label for="archivos">Un video, o varias fotos (se muestran en orden alfabético: 1.jpg, 2.jpg…)</label>
-      <input id="archivos" name="archivos" type="file" required multiple
+      <input id="archivos" name="archivos" type="file" multiple
              accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,.mp4,.mov,.avi,.mkv,.webm,.m4v,image/*"
+             style="width:100%;margin-bottom:10px">
+
+      <label for="enlace">…o pegá un enlace a un video (link directo a un .mp4 o un video de YouTube). Se descarga una
+        vez y queda guardado: después se reproduce sin internet.</label>
+      <input id="enlace" name="enlace" type="url" placeholder="https://www.youtube.com/watch?v=…"
              style="width:100%;margin-bottom:10px">
 
       <label>¿Qué anomalía tiene que detectar?</label>

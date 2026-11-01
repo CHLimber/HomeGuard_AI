@@ -24,6 +24,19 @@ def test_paginas_responden(sistema):
         assert c.get("/", follow_redirects=False).status_code in (302, 307)
 
 
+def test_en_vivo_detiene_y_activa_camaras(sistema):
+    """En vivo muestra las cámaras detenidas con «Activar» y las activas con «Detener»."""
+    sistema.actualizar_overrides({"camaras.cam1": {"nombre": "Cámara 1", "fuente": "no_existe.mp4",
+                                                   "activa": False, "detectores": ["puerta"]}})
+    with TestClient(crear_app(sistema, iniciar_sistema=False)) as c:
+        html = c.get("/en-vivo").text
+        assert "Cámara 1" in html and "Activar" in html and "/stream/cam1" not in html
+        assert c.post("/api/camaras/cam1", json={"activa": True}).status_code == 200
+        html = c.get("/en-vivo").text
+        assert "Detener" in html and "/stream/cam1" in html
+    sistema.camaras.detener_todas()
+
+
 def test_api_estado_y_silenciar(sistema):
     with TestClient(crear_app(sistema, iniciar_sistema=False)) as c:
         sistema.motor.estado = 0b10100

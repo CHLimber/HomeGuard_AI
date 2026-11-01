@@ -172,3 +172,54 @@ def test_reiniciar_camara_solo_borra_esa_camara(cfg):
     assert {c[1] for c in motor._ultimo_disparo} == {"a", "b"}
     motor.reiniciar_camara("a")
     assert {c[1] for c in motor._ultimo_disparo} == {"b"}
+
+
+@pytest.fixture
+def servidor_videos(videos_sinteticos, tmp_path):
+    """Sirve los videos sintéticos (y una página HTML) por HTTP local, para probar el alta desde un enlace."""
+    import functools
+    import shutil
+    import threading
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+    shutil.copy(videos_sinteticos / "puerta.mp4", tmp_path / "puerta.mp4")
+    (tmp_path / "pagina.html").write_text("<html>no soy un video</html>", encoding="utf-8")
+
+    class Manejador(SimpleHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+    servidor = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Manejador, directory=str(tmp_path)))
+    hilo = threading.Thread(target=servidor.serve_forever, daemon=True)
+    hilo.start()
+    yield f"http://127.0.0.1:{servidor.server_port}"
+    servidor.shutdown()
+
+
+def desde_enlace(cliente, enlace: str, detectores: list[str] = ["puerta"]):
+    return cliente.post("/api/pruebas", data={"nombre": "Enlace", "detectores": detectores, "enlace": enlace,
+                                              "reproducir": "false"})
+
+
+def test_prueba_desde_enlace_directo(cliente, sistema, servidor_videos):
+    r = desde_enlace(cliente, f"{servidor_videos}/puerta.mp4")
+    assert r.status_code == 200, r.text
+    medio = r.json()
+    assert medio["tipo"] == "video" and medio["duracion_s"] == pytest.approx(12, abs=0.5)
+    assert Path(sistema.config.camaras[medio["camara_id"]].fuente).exists()  # quedó guardado en disco
+    assert [z.tipo for z in sistema.zonas(medio["camara_id"])] == ["puerta"]
+
+
+def test_prueba_desde_enlace_invalido(cliente, sistema, servidor_videos):
+    assert "http" in desde_enlace(cliente, "ftp://servidor/video.mp4").json()["detail"]
+    assert "página web" in desde_enlace(cliente, f"{servidor_videos}/pagina.html").json()["detail"]
+    assert desde_enlace(cliente, f"{servidor_videos}/no_existe.mp4").status_code == 400
+    assert cliente.get("/api/pruebas").json()["medios"] == []  # no queda nada a medias
+    carpeta = Path(sistema.config.general.carpeta_pruebas)
+    assert not carpeta.exists() or not any(carpeta.iterdir())
+
+
+def test_prueba_desde_youtube_sin_yt_dlp(cliente, monkeypatch):
+    monkeypatch.setitem(__import__("sys").modules, "yt_dlp", None)  # simula que no está instalado
+    r = desde_enlace(cliente, "https://www.youtube.com/watch?v=abc")
+    assert r.status_code == 400 and "yt-dlp" in r.json()["detail"]

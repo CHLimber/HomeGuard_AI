@@ -13,6 +13,7 @@ pydantic>=2.7
 pyyaml>=6.0
 python-dotenv>=1.0
 requests>=2.32
+yt-dlp>=2024.8  # opcional: solo para pegar un enlace de YouTube en "Prueba con video"
 huggingface_hub>=0.24
 psutil>=5.9
 pytest>=8.0
