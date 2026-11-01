@@ -31,6 +31,7 @@ El preprocesamiento usa **operaciones de bits vectorizadas** (AND, OR, XOR, desp
 ### Windows (PowerShell)
 
 ```powershell
+git clone https://github.com/CHLimber/HomeGuard_AI.git homeguard
 cd homeguard
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1          # si PowerShell lo bloquea: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
@@ -44,6 +45,7 @@ python scripts\verificar_entorno.py
 ### Linux / macOS
 
 ```bash
+git clone https://github.com/CHLimber/HomeGuard_AI.git homeguard
 cd homeguard
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -56,6 +58,20 @@ python scripts/verificar_entorno.py
 
 `verificar_entorno.py` tiene que terminar con **0 errores**. Los avisos sobre `.env` o los celulares dependen de
 la configuración del grupo ([docs/GUIA_GRUPO.md](docs/GUIA_GRUPO.md)).
+
+### Lo que NO viene en el repositorio (cada laptop lo tiene que crear)
+
+- **`.env`** (token y chat id de Telegram): está en `.gitignore`. Copien `.env.example` como `.env`. Pueden compartir
+  el mismo bot (mismo `TELEGRAM_TOKEN`) pasándose el token por mensaje privado, nunca por git. El
+  `TELEGRAM_CHAT_ID` es el de **quien recibe las alarmas** (se obtiene con
+  `python scripts/probar_telegram.py --obtener-chat-id` después de escribirle `/start` al bot). Cópienlo completo:
+  si falta un dígito, Telegram responde «chat not found».
+- **`models/`** (pesos de los modelos): `python scripts/descargar_modelos.py`.
+- **`data/`** (base de datos con residentes y zonas, pruebas subidas, fotos de eventos): se crea sola y es propia de
+  cada laptop. Las zonas, los residentes y las pruebas con video se cargan de nuevo en cada una.
+- **Python 3.12 del `.venv`:** corran todo con el entorno activado (`(.venv)` al inicio de la línea) o con
+  `.venv\Scripts\python`. Con el `python` o `pip` globales salen errores como `No module named 'cv2'` o
+  `falta instalar yt-dlp`, aunque el paquete esté instalado en otro Python.
 
 ## Uso
 
@@ -74,13 +90,13 @@ Al arrancar se muestran las direcciones:
 
 | Página | Para qué |
 |---|---|
-| En vivo | Video de cada cámara con zonas y detecciones dibujadas, semáforo de las 5 anomalías, FPS, CPU y RAM |
+| En vivo | Video de cada cámara con zonas y detecciones dibujadas, semáforo de las 5 anomalías, FPS, CPU y RAM. Cada cámara (también las demo) tiene botón **Detener / Activar** |
 | Calibración | Valores crudos de cada detector (similitud, % de píxeles, ratio, ángulo…) al lado de su umbral |
 | Zonas | Dibujar polígonos sobre un frame congelado y capturar la referencia de la puerta cerrada |
 | Residentes | Registrar personas de la casa con 3 a 5 fotos (se guarda solo el vector del rostro) |
 | Configuración | URLs de cámaras, umbrales, probar Telegram |
 | Historial | Eventos con foto, confianza y latencias; exportar CSV |
-| Prueba con video | Modo exposición: subir un video o fotos que se analizan como una cámara más (suena el panel, llega el Telegram) |
+| Prueba con video | Modo exposición: subir un video o fotos, o pegar un enlace (directo o de YouTube), que se analizan como una cámara más (suena el panel, llega el Telegram) |
 
 Todos los umbrales están en [`config.yaml`](config.yaml), comentados. Lo que se cambia desde el dashboard se guarda
 en la base de datos y se aplica encima de `config.yaml`. El botón **Restaurar config.yaml** lo deshace.

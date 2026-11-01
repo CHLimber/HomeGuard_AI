@@ -219,8 +219,11 @@ Los mejores videos son los propios, grabados con la maqueta: muestran que funcio
 Videos MP4 de 10–30 s y 720p o menos. Las fotos se muestran en orden alfabético (nómbrenlas `1.jpg`, `2.jpg`…).
 
 **Paso a paso:**
-1. Dashboard → **Prueba con video** → nombre (es lo que se lee en el panel y en Telegram), archivo y anomalía →
-   **Subir y analizar**. Se crea la zona de todo el cuadro y empieza a reproducirse.
+1. Dashboard → **Prueba con video** → nombre (es lo que se lee en el panel y en Telegram), archivo **o enlace** y
+   anomalía → **Subir y analizar**. Se crea la zona de todo el cuadro y empieza a reproducirse. El enlace puede ser
+   directo a un `.mp4` o de YouTube (necesita internet **solo en ese momento**: el video se descarga y queda guardado,
+   así que en la feria se reproduce sin conexión). Elijan videos cortos: uno de 5 minutos tarda en llegar a la
+   anomalía. Si YouTube deja de funcionar: `pip install -U yt-dlp`.
 2. Si es una puerta, o si la anomalía tiene que pasar en una parte del cuadro: **Zonas** (botón de la fila) →
    dibujar → volver y tocar **Reiniciar**.
 3. Con el panel abierto en la tablet: **Reproducir**. A los pocos segundos suena la sirena.
