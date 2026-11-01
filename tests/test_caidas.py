@@ -55,7 +55,7 @@ def test_angulo_torso():
 def test_caida_brusca_e_inmovil_dispara(cfg):
     _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [acostado()])
     assert len(disparos) == 1
-    assert 7.0 <= disparos[0].t <= 7.5  # caída en t=2 s + 5 s de inmovilidad
+    assert 5.0 <= disparos[0].t <= 5.5  # caída en t=2 s + 3 s de inmovilidad
 
 
 def test_pose_cada_n_frames(cfg):
@@ -68,8 +68,8 @@ def test_acostado_desde_el_principio_no_es_caida(cfg):
     assert disparos == []
 
 
-def test_se_levanta_antes_de_5_segundos(cfg):
-    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 or t >= 5.0 else [acostado()])
+def test_se_levanta_antes_de_3_segundos(cfg):
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 or t >= 4.0 else [acostado()])
     assert disparos == []
 
 
@@ -93,6 +93,36 @@ def test_se_mueve_en_el_suelo_reinicia_inmovilidad(cfg):
             return [acostado(cx=200 + (t - 2.0) * 30)]
         return [acostado(cx=290)]
     _, disparos = correr(cfg, secuencia)
-    # sin arrastre dispararía en t=7 s; el ancla se reinicia mientras se mueve más de 20 px (último reinicio
-    # en t=4,4 s, el tramo final de 18 px queda dentro de la tolerancia), así que dispara en t=9,4 s
-    assert len(disparos) == 1 and 9.0 <= disparos[0].t <= 10.0
+    # sin arrastre dispararía en t=5 s; el ancla se reinicia mientras se mueve más de la tolerancia (15 % de
+    # los 220 px del cuerpo = 33 px; último reinicio en t=4,4 s, el tramo final de 18 px queda dentro), así que
+    # dispara en t=7,4 s
+    assert len(disparos) == 1 and 7.0 <= disparos[0].t <= 8.0
+
+
+def test_ruido_de_la_pose_en_el_suelo_no_reinicia_inmovilidad(cfg):
+    """El centro de un cuerpo grande tiembla ±15 px (30 de pico a pico) por el ruido de la pose: no es movimiento
+    (la tolerancia es el 15 % de los 220 px del cuerpo = 33 px; con los 20 px fijos de antes reiniciaba la cuenta)."""
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [acostado(cx=200 + (15 if int(t * 5) % 2 else -15))])
+    assert len(disparos) == 1 and 5.0 <= disparos[0].t <= 5.5
+
+
+def test_detecciones_de_pie_falsas_sobre_la_caida_no_la_cancelan(cfg):
+    """Tendida en el suelo, la pose a ratos devuelve un recuadro «de pie» al ras del suelo: no es que se levantó."""
+    def secuencia(t):
+        if t < 2.0:
+            return [de_pie()]
+        return [de_pie(cx=205, pie=400, alto=100)] if int(t * 5) % 3 == 0 else [acostado()]  # centro 15 px más arriba
+    _, disparos = correr(cfg, secuencia)
+    assert len(disparos) == 1
+
+
+def test_si_la_pose_pierde_a_la_persona_caida_sigue_contando(cfg):
+    """Acostada se detecta mal: si deja de verse (sin que nadie se levante) la caída se mantiene hasta olvidar_tras_s."""
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [acostado()] if t < 2.6 else [])
+    assert len(disparos) == 1 and 5.0 <= disparos[0].t <= 5.5
+
+
+def test_se_sienta_claramente_mas_arriba_cancela_la_caida(cfg):
+    """Sentada (160 px de alto: su centro queda 45 px más arriba que acostada, más del 25 % de su altura) se levantó."""
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [acostado()] if t < 3.0 else [de_pie(pie=400, alto=160)])
+    assert disparos == []

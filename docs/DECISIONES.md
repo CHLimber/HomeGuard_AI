@@ -62,7 +62,8 @@ funcione en una demo en vivo**.
 22. **Caídas:** la persona caída se asocia con la que estaba de pie **por cercanía, no por `tracker_id`**. Cuando el
     cuerpo pasa de vertical a horizontal el bbox cambia tanto que los trackers suelen perder la identidad justo en la
     caída. Si los keypoints del torso no son confiables, no se considera "acostado" (criterio conservador). Si una
-    persona de pie aparece pegada a la caída (alguien que ayuda), el seguimiento de esa caída se descarta.
+    persona de pie aparece pegada a la caída (alguien que ayuda), el seguimiento de esa caída se descarta (ver nº 52
+    para el criterio actual).
 23. **Rostros:** YuNet corre sobre el recorte de la zona "acceso" a **resolución original** (mejor a distancia) y solo
     si YOLO ve una persona dentro de la zona. Un rostro cuya caja cae dentro del recorte pero fuera del polígono se
     ignora. Si no hay residentes registrados, cualquier rostro es desconocido.
@@ -184,3 +185,16 @@ funcione en una demo en vivo**.
     `yt-dlp`, MP4 de 720p o menos). Siempre se guarda en disco como un medio subido, así que la reproducción no
     depende de internet ni de que el link siga vivo en la feria. `yt-dlp` es opcional: sin él, solo falla el alta
     desde YouTube, con un aviso. No se reproduce el enlace en vivo porque YouTube no entrega un stream que OpenCV lea.
+52. **Caídas más tolerantes para la demostración.** Se probó el detector con pose real sobre videos de caídas de
+    internet (cámara fija) y no detectaba ninguna: la pose pierde o «endereza» a la persona acostada y las reglas
+    reiniciaban la cuenta. Cambios (todos en `config.yaml`, sección `detectores.caidas`):
+    - `confianza` 0,40 → **0,25** e `imgsz` propio de **640** (la pose de una persona acostada sale con poca confianza).
+    - La caída solo se descarta si alguien cercano está **más arriba** que ella en al menos `levantarse_relativo`
+      (0,25) × su altura. Antes cualquier recuadro «de pie» cercano la cancelaba, aunque fuera ruido de la pose.
+    - Tolerancia de movimiento = máx(`inmovil_desplazamiento_px`, `inmovil_desplazamiento_relativo` (0,15) × largo
+      del cuerpo): con 20 px fijos el temblor del centro de un cuerpo grande reiniciaba la inmovilidad.
+    - `inmovil_tiempo_s` 5 → **3** y `olvidar_tras_s` 3 → **6**: si la pose deja de ver a la persona acostada, la
+      caída sigue contando hasta que alguien se levante o pasen 6 s. Los valores del Anexo C eran 0,40 / 5 / 3.
+    Con 7 videos recortados (2 caídas reales y 5 tramos sin caída) pasó de 0/2 a 2/2 sin falsos positivos; es una
+    muestra chica, así que midan con sus propios videos (`scripts/evaluar_detector.py --detector caidas`).
+    Se mantiene el criterio conservador de la nº 22 (sin keypoints confiables no es «acostado»).

@@ -8,8 +8,13 @@ Es una CAÍDA si además:
   - hubo un descenso brusco: menos de `ventana_descenso_s` antes, cerca
     (en x) había una persona de pie cuyo centro estaba más arriba en al menos
     `descenso_min_relativo` x su altura, y
-  - después queda inmóvil (centro dentro de `inmovil_desplazamiento_px`)
-    durante más de `inmovil_tiempo_s`.
+  - después queda inmóvil durante más de `inmovil_tiempo_s`: el centro no se
+    aleja más de `inmovil_desplazamiento_px` (o `inmovil_desplazamiento_relativo`
+    x el largo del cuerpo, lo que sea mayor; así el ruido de la pose en un cuerpo
+    grande no reinicia la cuenta).
+La caída se descarta si alguien de pie o sentado aparece cerca y claramente más
+arriba (`levantarse_relativo` x su altura): una detección «de pie» que apenas
+sube respecto del suelo es ruido de la pose, no una persona que se levantó.
 
 La persona caída se asocia con la que estaba de pie por cercanía y no por
 tracker_id: cuando el cuerpo pasa de vertical a horizontal el bbox cambia
@@ -81,6 +86,7 @@ class _Candidato:
     t_ancla: float
     ultimo_visto: float
     descenso: float
+    tam: float  # largo del cuerpo caído (lado mayor de su bbox): escala la tolerancia de movimiento
 
 
 @dataclass
@@ -107,7 +113,7 @@ class DetectorCaidas(Detector):
 
     def _yolo_pose(self, frame: np.ndarray, cfg_global) -> list[Persona]:
         cfg = cfg_global.detectores.caidas
-        r = self.modelos.yolo(cfg.modelo).predict(frame, imgsz=cfg_global.procesamiento.imgsz_yolo,
+        r = self.modelos.yolo(cfg.modelo).predict(frame, imgsz=cfg.imgsz or cfg_global.procesamiento.imgsz_yolo,
                                                    conf=cfg.confianza, verbose=False)[0]
         if r.keypoints is None or len(r.boxes) == 0:
             return []
@@ -133,10 +139,12 @@ class DetectorCaidas(Detector):
             acostado = p.ratio > cfg.ratio_min and ang is not None and ang < cfg.angulo_max_grados
             cx, cy = p.centro
             if acostado:
-                self._seguir_o_crear(estado, cfg, t, cx, cy)
-            else:  # de pie / sentado: si estaba cerca de un candidato, se levantó
+                x0, y0, x1, y1 = p.bbox
+                self._seguir_o_crear(estado, cfg, t, cx, cy, max(x1 - x0, y1 - y0))
+            else:  # de pie / sentado: si está cerca de un candidato y claramente más arriba, se levantó
                 estado.candidatos = [c for c in estado.candidatos
-                                     if abs(c.cx - cx) >= cfg.radio_asociacion_px or abs(c.cy - cy) >= p.alto]
+                                     if abs(c.cx - cx) >= cfg.radio_asociacion_px
+                                     or c.cy - cy < cfg.levantarse_relativo * p.alto]
             estado.historial.append((t, cx, cy, p.alto, acostado))
             detalle_personas.append({"ratio": round(p.ratio, 2),
                                      "angulo_torso": None if ang is None else round(ang, 0),
@@ -165,12 +173,13 @@ class DetectorCaidas(Detector):
         )]
 
     @staticmethod
-    def _seguir_o_crear(estado: _EstadoCamara, cfg, t: float, cx: float, cy: float) -> None:
+    def _seguir_o_crear(estado: _EstadoCamara, cfg, t: float, cx: float, cy: float, tam: float) -> None:
         cercanos = [c for c in estado.candidatos if math.hypot(c.cx - cx, c.cy - cy) < cfg.radio_asociacion_px]
         if cercanos:
             c = min(cercanos, key=lambda c: math.hypot(c.cx - cx, c.cy - cy))
-            c.cx, c.cy, c.ultimo_visto = cx, cy, t
-            if math.hypot(cx - c.ancla[0], cy - c.ancla[1]) > cfg.inmovil_desplazamiento_px:
+            c.cx, c.cy, c.ultimo_visto, c.tam = cx, cy, t, tam
+            tolerancia = max(cfg.inmovil_desplazamiento_px, cfg.inmovil_desplazamiento_relativo * tam)
+            if math.hypot(cx - c.ancla[0], cy - c.ancla[1]) > tolerancia:
                 c.ancla, c.t_ancla = (cx, cy), t  # se movió: la inmovilidad empieza de nuevo
             return
         # ¿hubo una persona de pie cerca, más arriba, hace menos de ventana_descenso_s?
@@ -181,4 +190,4 @@ class DetectorCaidas(Detector):
             if abs(rx - cx) < cfg.radio_asociacion_px and alto > 0:
                 mejor = max(mejor, (cy - ry) / alto)
         if mejor >= cfg.descenso_min_relativo:
-            estado.candidatos.append(_Candidato(cx, cy, t, (cx, cy), t, t, mejor))
+            estado.candidatos.append(_Candidato(cx, cy, t, (cx, cy), t, t, mejor, tam))

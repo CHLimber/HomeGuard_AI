@@ -131,13 +131,13 @@ se ven en **rojo**. Ajustá en **Configuración** (se aplica al instante):
 | Un residente sale "desconocido" | `rostros → similitud` | registrar más fotos con la luz de la feria; bajar un poco `umbral_similitud` (no menos de ~0,30) |
 | Fuego: la capa 2 nunca corre | `capa1 pct color y movimiento` | bajar `umbral_capa1_pct` o ampliar `hue_max` / bajar `sat_min` |
 | Fuego: falsas alarmas con luces | `capa2 confianza` | subir `confianza_capa2` o `alarmas.fuego.votos_n` |
-| Caídas no detectadas | `ratio`, `angulo torso`, `descenso relativo` | bajar `ratio_min` o `descenso_min_relativo`; cámara más alta y lateral |
+| Caídas no detectadas | `ratio`, `angulo torso`, `descenso relativo`, `segundos inmóvil` | si no hay personas: subir `caidas.imgsz` o bajar `caidas.confianza`; si no hay descenso: bajar `descenso_min_relativo`; si los segundos no llegan al umbral: subir `inmovil_desplazamiento_relativo` o bajar `inmovil_tiempo_s`; cámara fija, lateral y a la altura de la cintura o más alta |
 | Piscina suena con un adulto presente | `supervisores en borde` = 0 | ampliar la zona `borde_piscina` (tiene que contener los pies del adulto) |
 | Va lento (FPS bajos) | En vivo → FPS, ms/frame | bajar `procesamiento.imgsz_yolo` (ej. 416 o 320) o `fps_objetivo`; subir `caidas.cada_n_frames` |
 
 Para la demo, quizás quieran **bajar los tiempos** para que el público no espere tanto: por ejemplo
-`detectores.piscina.inmovil_tiempo_s` de 10 a 5, o `detectores.caidas.inmovil_tiempo_s` de 5 a 3. Anótenlo en la
-defensa.
+`detectores.piscina.inmovil_tiempo_s` de 8 a 5. Para las caídas ya viene en 3 s (el informe dice 5; está anotado
+en `docs/DECISIONES.md`, nº 52). Anótenlo en la defensa.
 
 Si se rompe algo de la configuración: **Configuración → Restaurar config.yaml**.
 
@@ -212,7 +212,7 @@ Telegram y queda en el Historial con sus latencias.
 | Intrusión | Video o foto de una persona de frente, con la cara grande y visible | Que **no** esté registrada en Residentes |
 | Piscina | Video o foto de alguien dentro de una piscina | Con «todo el cuadro» como zona alcanza con que aparezca una persona 2 s |
 | Fuego | Video de una llama real (vela, fogata, hornalla) o una foto de fuego | Un dibujo o una luz naranja no dispara: lo confirma el YOLO de fuego |
-| Caída | **Video** de alguien de pie que cae al piso y queda quieto 5 s | Con fotos: 1 de pie y 2 en el suelo, en el mismo lugar del cuadro. Una foto rotada no sirve |
+| Caída | **Video** de alguien de pie que cae al piso y se queda en el suelo 3 s o más | Con fotos: 1 de pie y 2 en el suelo, en el mismo lugar del cuadro. Una foto rotada no sirve |
 | Puerta | Video con cámara fija: puerta cerrada al principio, después se abre 2 s o más | Fotos: 1 cerrada y 2 abierta. **Dibujar la zona sobre la puerta** |
 
 Los mejores videos son los propios, grabados con la maqueta: muestran que funciona con lo que está en la mesa.

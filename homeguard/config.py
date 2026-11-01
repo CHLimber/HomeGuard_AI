@@ -144,7 +144,8 @@ class CfgFuego(_Base):
 
 class CfgCaidas(_Base):
     modelo: str
-    confianza: float = Field(0.4, ge=0, le=1)
+    confianza: float = Field(0.25, ge=0, le=1)
+    imgsz: int = Field(640, ge=0)
     cada_n_frames: int = Field(2, ge=1)
     confianza_keypoint: float = Field(0.5, ge=0, le=1)
     ratio_min: float = Field(1.4, gt=0)
@@ -153,8 +154,10 @@ class CfgCaidas(_Base):
     descenso_min_relativo: float = Field(0.25, ge=0)
     radio_asociacion_px: float = Field(120, gt=0)
     inmovil_desplazamiento_px: float = Field(20, ge=0)
-    inmovil_tiempo_s: float = Field(5.0, ge=0)
-    olvidar_tras_s: float = Field(3.0, gt=0)
+    inmovil_desplazamiento_relativo: float = Field(0.15, ge=0)
+    levantarse_relativo: float = Field(0.25, ge=0)
+    inmovil_tiempo_s: float = Field(3.0, ge=0)
+    olvidar_tras_s: float = Field(6.0, gt=0)
 
 
 class CfgPuerta(_Base):

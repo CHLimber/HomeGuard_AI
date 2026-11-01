@@ -78,7 +78,7 @@ alarmas:
   intrusion: {votos_n: 5, votos_m: 5, cooldown_s: 30}   # N = M => K frames consecutivos con rostro desconocido
   piscina:   {votos_n: 3, votos_m: 5, cooldown_s: 30}
   fuego:     {votos_n: 3, votos_m: 5, cooldown_s: 30}   # capa 2 > umbral en 3 de 5 frames
-  caida:     {votos_n: 1, votos_m: 1, cooldown_s: 30}   # el detector ya exige descenso + 5 s de inmovilidad
+  caida:     {votos_n: 1, votos_m: 1, cooldown_s: 30}   # el detector ya exige descenso + 3 s de inmovilidad
   puerta:    {votos_n: 1, votos_m: 1, cooldown_s: 30}   # el detector ya exige 2 s de cambio sostenido
 
 motor:
@@ -122,7 +122,8 @@ detectores:
 
   caidas:
     modelo: models/yolov8n-pose.pt
-    confianza: 0.40               # confianza mínima de la persona detectada
+    confianza: 0.25               # confianza mínima de la persona detectada (baja: una persona acostada se detecta con poca confianza)
+    imgsz: 640                    # tamaño de entrada de la pose (0 = usar procesamiento.imgsz_yolo)
     cada_n_frames: 2              # la pose se calcula cada N frames (ahorra CPU)
     confianza_keypoint: 0.50      # keypoints con menos confianza se ignoran
     ratio_min: 1.4                # ancho/alto del bbox por encima de esto => cuerpo horizontal
@@ -130,9 +131,11 @@ detectores:
     ventana_descenso_s: 1.0       # el paso de "de pie" a "en el suelo" tiene que ocurrir en menos de esto
     descenso_min_relativo: 0.25   # el centro tiene que bajar al menos esta fracción de la altura de la persona de pie
     radio_asociacion_px: 120      # distancia horizontal máxima para asociar la persona caída con la que estaba de pie
-    inmovil_desplazamiento_px: 20 # movimiento máximo del centro para considerarla inmóvil
-    inmovil_tiempo_s: 5.0         # inmovilidad necesaria después de la caída
-    olvidar_tras_s: 3.0           # si la persona caída no se ve durante este tiempo, se descarta
+    inmovil_desplazamiento_px: 20 # movimiento máximo del centro para considerarla inmóvil (mínimo, en px)
+    inmovil_desplazamiento_relativo: 0.15  # ...o esta fracción del largo del cuerpo caído, lo que sea mayor
+    levantarse_relativo: 0.25     # una persona cercana y más arriba que la caída en esta fracción de su altura => se levantó
+    inmovil_tiempo_s: 3.0         # inmovilidad necesaria después de la caída
+    olvidar_tras_s: 6.0           # si la persona caída no se ve durante este tiempo, se descarta
 
   puerta:
     metodo: absdiff          # "absdiff" (diferencia de grises) o "xor" (XOR de imágenes binarizadas)
