@@ -136,8 +136,8 @@ se ven en **rojo**. Ajustá en **Configuración** (se aplica al instante):
 | Va lento (FPS bajos) | En vivo → FPS, ms/frame | bajar `procesamiento.imgsz_yolo` (ej. 416 o 320) o `fps_objetivo`; subir `caidas.cada_n_frames` |
 
 Para la demo, quizás quieran **bajar los tiempos** para que el público no espere tanto: por ejemplo
-`detectores.piscina.inmovil_tiempo_s` de 8 a 5. Para las caídas ya viene en 3 s (el informe dice 5; está anotado
-en `docs/DECISIONES.md`, nº 52). Anótenlo en la defensa.
+`detectores.piscina.inmovil_tiempo_s` de 8 a 5. Para las caídas ya viene en 3 s (el informe ya lo dice; está anotado
+en `docs/DECISIONES.md`, nº 52 y 53). Anótenlo en la defensa.
 
 Si se rompe algo de la configuración: **Configuración → Restaurar config.yaml**.
 
@@ -167,7 +167,8 @@ mezclar eventos de pruebas viejas, y no usen `--demo` para el informe (son event
 
 ## 10. Capturas de pantalla para el Anexo J (≈ 20 min)
 
-Sáquenlas con el sistema corriendo con cámaras reales y la maqueta, no en `--demo`. En Windows: `Win + Shift + S`;
+El Anexo J del informe ya trae J1 a J5 tomadas en `--demo`; falta J6 (Telegram). Reemplácenlas si quieren mostrar la maqueta:
+sáquenlas con el sistema corriendo con cámaras reales, no en `--demo`. En Windows: `Win + Shift + S`;
 en el celular, la captura normal. Guárdenlas en PNG con el nombre indicado.
 
 | Archivo | Qué tiene que verse | Cómo obtenerla |

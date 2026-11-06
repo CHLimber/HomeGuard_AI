@@ -198,3 +198,9 @@ funcione en una demo en vivo**.
     Con 7 videos recortados (2 caídas reales y 5 tramos sin caída) pasó de 0/2 a 2/2 sin falsos positivos; es una
     muestra chica, así que midan con sus propios videos (`scripts/evaluar_detector.py --detector caidas`).
     Se mantiene el criterio conservador de la nº 22 (sin keypoints confiables no es «acostado»).
+53. **Informe Word actualizado al código (06/11/2026).** El Anexo C y la Tabla 2 pasan a los valores de la nº 52
+    (inmovilidad de caídas 3 s, confianza 0,25, tolerancia relativa), y el texto describe lo que hace el código: el
+    movimiento es XOR de grises cuantizados a 4 bits (no de imágenes binarizadas), YOLO general no se limita a las
+    regiones con movimiento y el benchmark reporta la mediana sin medir CPU. Se agregó la Tabla 8 con las cinco
+    variantes, incluido que a igual área HSV de OpenCV es más rápido que la tabla de bits, y el Anexo J con capturas
+    en `--demo`. El dato del Atlas se cita por prensa (Opinión, 2024) porque no se halló la fuente oficial.
