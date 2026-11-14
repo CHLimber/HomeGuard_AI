@@ -5,7 +5,7 @@
 | 0 — Base (repo, venv, modelos, config, verificar_entorno) | ✅ hecha |
 | 1 — Esqueleto de punta a punta | ✅ hecha |
 | 2 — Bitwise + benchmark | ✅ hecha |
-| 3 — Detectores (fuego, piscina, caídas, rostros) | ✅ hecha |
+| 3 — Detectores (fuego, caídas, rostros; la piscina se hizo y después se quitó) | ✅ hecha |
 | 4 — Dashboard | ✅ hecha |
 | 5 — Robustez | ✅ hecha |
 | 6 — Documentación final | ✅ hecha |
@@ -38,7 +38,7 @@
 
 ## Fase 3
 - Fuego: capa 1 (RGB332+LUT AND movimiento XOR AND zona) → capa 2 YOLO fire-smoke solo si capa 1 supera el umbral.
-- Piscina: YOLO general + ByteTrack + PolygonZone; reglas (a) sin supervisor en el borde y (b) tracker inmóvil.
+- Piscina (quitada el 07/11/2026, ver abajo): YOLO general + ByteTrack + PolygonZone; reglas (a) sin supervisor en el borde y (b) tracker inmóvil.
 - Caídas: YOLOv8n-pose cada N frames; ratio + ángulo de torso + descenso brusco + inmovilidad (asociación por cercanía).
 - Rostros: YuNet + SFace, solo si YOLO ve una persona en la zona "acceso"; similitud coseno vs residentes.
 - Página `/calibracion` con los valores crudos de cada detector junto a su umbral (en rojo si lo supera).
@@ -95,6 +95,14 @@
   0,8 s; latencias al panel 4–8 ms. 104 tests OK (25 saltados: DLL nativa sin compilar).
 - Caídas y puerta con fotos/video se probaron con el video sintético (tests); con video real lo prueba el grupo.
 
+## Piscina quitada (07/11/2026)
+- Se eliminó la anomalía «piscina» (detector, zonas `piscina`/`borde_piscina`, alarma, bit del byte de estado, video
+  sintético `zona.mp4`, cámara demo y sus tests). Quedan 4 anomalías: intrusión, fuego, caída y puerta. Motivo y
+  detalles en `docs/DECISIONES.md`, nº 54.
+- El byte de estado se renumeró (INTRUSION=1, FUEGO=2, CAIDA=4, PUERTA=8, `TODAS`=15).
+- Una BD anterior sigue funcionando: se ignoran los overrides, zonas y detectores de piscina que tenga guardados.
+- 112 tests OK (25 saltados: DLL nativa sin compilar); `run.py --demo` dispara la puerta a los ~6 s.
+
 ## Fase 7 (opcional)
 - `nativo/bitwise_simd.c` (XOR/AND con SSE2 y AVX2, detección de CPU, fallback escalar), `compilar.bat`/`.sh`,
   `homeguard/preproceso/nativo.py` (ctypes), variante E del benchmark y `tests/test_nativo.py`.
@@ -115,8 +123,6 @@
 ## Problemas conocidos
 - El video sintético de fuego (elipses naranjas) activa la capa 1 pero el YOLO fire-smoke no lo reconoce como
   fuego (esperable): para ver una alarma de fuego real hace falta un video de una llama real.
-- El rectángulo del video sintético "zona" no es una persona para YOLO: en `--demo` la piscina no dispara;
-  sus reglas se prueban en los tests con detecciones simuladas.
 - Vibración y wake lock pueden no funcionar en Android por `http://IP` sin HTTPS (workaround en GUIA_GRUPO).
 - La latencia al panel se mide con el ack: incluye el viaje de vuelta (cota superior).
 - `sv.ByteTrack` está deprecado en supervision 0.28+ y se elimina en 0.31 → `requirements.txt` fija `<0.31`.

@@ -25,7 +25,7 @@ from homeguard.db.sesion import BaseDatos
 from homeguard.detectores.base import Zona
 from homeguard.detectores.modelos import Modelos
 from homeguard.pipeline import Pipeline
-from homeguard.pruebas import PREFIJO_PRUEBA
+from homeguard.pruebas import DETECTORES, PREFIJO_PRUEBA
 from homeguard.reglas.motor import Disparo, MotorReglas
 from homeguard.salidas.registro import Registro, codificar_jpeg
 from homeguard.salidas.telegram import EnviadorTelegram, TareaTelegram
@@ -35,7 +35,6 @@ log = logging.getLogger(__name__)
 
 ETIQUETAS = {
     "intrusion": "INTRUSIÓN - rostro desconocido",
-    "piscina": "PISCINA - riesgo en el agua",
     "fuego": "FUEGO / HUMO",
     "caida": "CAÍDA de una persona",
     "puerta": "PUERTA abierta fuera de horario",
@@ -126,7 +125,8 @@ class Sistema:
             medios = s.scalars(select(m.MedioPrueba).order_by(m.MedioPrueba.creado_en)).all()
         pruebas = {
             PREFIJO_PRUEBA + medio.id: CfgCamara(
-                nombre=f"Prueba: {medio.nombre}", fuente=medio.ruta, detectores=medio.detectores,
+                nombre=f"Prueba: {medio.nombre}", fuente=medio.ruta,
+                detectores=[d for d in medio.detectores if d in DETECTORES],  # descarta detectores quitados (piscina)
                 activa=PREFIJO_PRUEBA + medio.id == self.prueba_activa,
                 segundos_por_imagen=medio.segundos_por_imagen)
             for medio in medios}

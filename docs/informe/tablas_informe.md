@@ -1,6 +1,6 @@
 # Tablas para el informe (sección 6.2 "Resultados esperados")
 
-_Generado por `scripts/generar_tablas_informe.py` el 31/10/2026 18:24. Latencias: 0 eventos (0 con ack del panel) de `homeguard.db`. "Por medir" = todavía no hay datos medidos._
+_Generado por `scripts/generar_tablas_informe.py` el 07/11/2026 12:28. Latencias: 0 eventos (0 con ack del panel) de `homeguard.db`. "Por medir" = todavía no hay datos medidos._
 
 ## Tabla 1. Benchmark del preprocesamiento bitwise (frame 640×480)
 
@@ -17,7 +17,6 @@ _Generado por `scripts/generar_tablas_informe.py` el 31/10/2026 18:24. Latencias
 | Detector | Videos | VP | FP | VN | FN | Precisión | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Intrusión (rostros) | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir |
-| Piscina | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir |
 | Fuego / humo | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir |
 | Caídas | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir |
 | Puerta | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir | Por medir |

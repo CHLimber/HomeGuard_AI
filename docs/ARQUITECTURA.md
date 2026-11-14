@@ -19,7 +19,7 @@ flowchart LR
 
     subgraph Proceso["Hilo de procesamiento (pipeline.py)"]
         PRE["preproceso/bitwise.py<br/>gris · ROI (AND) · movimiento (XOR)<br/>cuantización (AND / >> <<) · RGB332 + LUT"]
-        DET["detectores/<br/>rostros · piscina · fuego · caídas · puerta"]
+        DET["detectores/<br/>rostros · fuego · caídas · puerta"]
         MOT["reglas/motor.py<br/>N de M · cooldown · byte de estado"]
         ANO["anotador.py<br/>(supervision)"]
     end
@@ -96,8 +96,8 @@ de escribir en la BD. Si el ack del panel llega antes de que el evento esté en 
 apenas se inserta.
 
 Para no gastar CPU, no todos los modelos corren en todos los frames:
-- el YOLO general (personas y mascotas) corre solo si algún detector lo pide en ese frame (piscina, o rostros con
-  una zona "acceso") y se comparte entre ambos;
+- el YOLO general (personas y mascotas) corre solo si algún detector lo pide en ese frame (rostros, con una zona
+  "acceso") y una sola vez por frame;
 - YuNet + SFace corren solo si YOLO ve una persona dentro de la zona "acceso";
 - el YOLO de fuego corre solo si la capa 1 bitwise supera su umbral;
 - la pose corre cada `detectores.caidas.cada_n_frames` frames.
@@ -117,7 +117,7 @@ Para no gastar CPU, no todos los modelos corren en todos los frames:
 | `preproceso/benchmark.py` | 5 variantes de la capa 1 de fuego, de bucle Python a bits vectorizados con ROI → `docs/BENCHMARK.md`. |
 | `detectores/base.py` | `Zona`, `PosibleEvento`, `Contexto` (frame, tiempo, zonas, movimiento, detecciones YOLO perezosas), `EstadoCamara`. |
 | `detectores/modelos.py` | Carga perezosa y cacheada de YOLO, YuNet y SFace. |
-| `detectores/puerta.py` · `fuego.py` · `piscina.py` · `caidas.py` · `rostros.py` | Un detector por anomalía. Cada uno emite una observación por zona evaluada y escribe sus valores en `ctx.calibracion`. |
+| `detectores/puerta.py` · `fuego.py` · `caidas.py` · `rostros.py` | Un detector por anomalía. Cada uno emite una observación por zona evaluada y escribe sus valores en `ctx.calibracion`. |
 | `reglas/estado.py` | Byte de estado: un bit por anomalía. |
 | `reglas/motor.py` | Votación N de M por (tipo, cámara, zona), cooldown, estado enclavado hasta silenciar, semáforo de "activos". |
 | `salidas/websocket.py` | Conexiones por canal (`alarma`, `estado`) y broadcast desde otros hilos. |
@@ -131,8 +131,8 @@ Para no gastar CPU, no todos los modelos corren en todos los frames:
 
 ```python
 class Detector:
-    nombre: str   # nombre en config.yaml (rostros, piscina, fuego, caidas, puerta)
-    tipo: str     # anomalía (intrusion, piscina, fuego, caida, puerta)
+    nombre: str   # nombre en config.yaml (rostros, fuego, caidas, puerta)
+    tipo: str     # anomalía (intrusion, fuego, caida, puerta)
     def procesar(self, frame, ctx: Contexto) -> list[PosibleEvento]: ...
 ```
 
@@ -198,8 +198,8 @@ erDiagram
 
 | Dirección | Mensaje |
 |---|---|
-| servidor → panel | `{"tipo":"estado","estado":20,"ultimo_evento":{...}}` al conectar y cada 0,5 s (también sirve de latido) |
-| servidor → panel | `{"tipo":"alerta","estado":20,"evento":{"id","tipo","zona","camara","foto","hora",...}}` |
+| servidor → panel | `{"tipo":"estado","estado":10,"ultimo_evento":{...}}` al conectar y cada 0,5 s (también sirve de latido) |
+| servidor → panel | `{"tipo":"alerta","estado":10,"evento":{"id","tipo","zona","camara","foto","hora",...}}` |
 | panel → servidor | `{"accion":"ack","evento_id":"..."}` apenas llega una alerta |
 | panel → servidor | `{"accion":"silenciar"}` · `{"accion":"ping"}` |
 

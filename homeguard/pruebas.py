@@ -28,9 +28,9 @@ log = logging.getLogger(__name__)
 
 PREFIJO_PRUEBA = "prueba_"  # id de cámara de cada medio: prueba_<id>
 EXTENSIONES_VIDEO = (".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v")
-DETECTORES = ("rostros", "piscina", "fuego", "caidas", "puerta")
+DETECTORES = ("rostros", "fuego", "caidas", "puerta")
 # zona de cuadro completo que necesita cada detector (caídas analiza todo el frame sin zona)
-ZONA_POR_DETECTOR = {"rostros": "acceso", "piscina": "piscina", "fuego": "fuego", "puerta": "puerta"}
+ZONA_POR_DETECTOR = {"rostros": "acceso", "fuego": "fuego", "puerta": "puerta"}
 CUADRO_COMPLETO = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
 TAMANO_BLOQUE = 1024 * 1024
 
@@ -239,7 +239,7 @@ def listar_medios(bd: BaseDatos) -> list[dict[str, Any]]:
         cid = PREFIJO_PRUEBA + medio.id
         salida.append({
             "id": medio.id, "camara_id": cid, "nombre": medio.nombre, "tipo": medio.tipo,
-            "detectores": medio.detectores, "segundos_por_imagen": medio.segundos_por_imagen,
+            "detectores": [d for d in medio.detectores if d in DETECTORES], "segundos_por_imagen": medio.segundos_por_imagen,
             "imagenes": len(listar_imagenes(ruta)) if medio.tipo == "imagenes" and ruta.is_dir() else None,
             "existe": ruta.exists(), "zonas": sorted(zonas.get(cid, [])),
             "creado_en": medio.creado_en.isoformat(timespec="minutes"),

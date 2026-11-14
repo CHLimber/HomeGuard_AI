@@ -46,8 +46,8 @@ from homeguard.detectores.base import Zona  # noqa: E402
 from homeguard.detectores.modelos import Modelos  # noqa: E402
 from homeguard.reglas.motor import MotorReglas  # noqa: E402
 
-TIPO_DE_DETECTOR = {"rostros": "intrusion", "piscina": "piscina", "fuego": "fuego", "caidas": "caida", "puerta": "puerta"}
-ZONA_POR_DEFECTO = {"rostros": "acceso", "piscina": "piscina", "puerta": "puerta"}  # fuego y caídas no la necesitan
+TIPO_DE_DETECTOR = {"rostros": "intrusion", "fuego": "fuego", "caidas": "caida", "puerta": "puerta"}
+ZONA_POR_DEFECTO = {"rostros": "acceso", "puerta": "puerta"}  # fuego y caídas no la necesitan
 EXTENSIONES = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 RUTA_PRUEBAS = RAIZ / "docs" / "PRUEBAS.md"
 

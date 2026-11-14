@@ -60,7 +60,7 @@ class Zona(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     camara_id: Mapped[str] = mapped_column(String(50), index=True)
     nombre: Mapped[str] = mapped_column(String(100))
-    tipo: Mapped[str] = mapped_column(String(20))           # acceso, piscina, borde_piscina, puerta, fuego
+    tipo: Mapped[str] = mapped_column(String(20))           # acceso, puerta, fuego
     puntos: Mapped[list] = mapped_column(JSON)               # [[x, y], ...] normalizados 0-1
     referencia: Mapped[str | None] = mapped_column(String(300), nullable=True)  # imagen de puerta cerrada
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora)

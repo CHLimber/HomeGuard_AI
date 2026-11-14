@@ -26,7 +26,7 @@
 {% endblock %}
 {% block scripts %}
 <script>
-const NOMBRES = { puerta: "Puerta", fuego: "Fuego / humo", piscina: "Piscina", caidas: "Caídas", rostros: "Rostros (intrusión)" };
+const NOMBRES = { puerta: "Puerta", fuego: "Fuego / humo", caidas: "Caídas", rostros: "Rostros (intrusión)" };
 // pares valor -> umbral (para marcar en rojo lo que ya dispararía)
 const PARES = {
   porcentaje_cambiado: ["umbral_porcentaje", ">="], segundos_abierta: null,
@@ -65,7 +65,7 @@ function bloque(detector, datos) {
      <table><tr><th>Valor</th><th>Ahora</th><th>Umbral</th></tr>${filas(d)}</table>`).join("");
 }
 
-const NOMBRES_ALARMA = { intrusion: "Intrusión", piscina: "Piscina", fuego: "Fuego / humo", caida: "Caída", puerta: "Puerta" };
+const NOMBRES_ALARMA = { intrusion: "Intrusión", fuego: "Fuego / humo", caida: "Caída", puerta: "Puerta" };
 
 function porcentaje(x) {
   if (x === 0) return "0 %";
@@ -95,7 +95,7 @@ alTelemetria.push(t => {
   cont.innerHTML = camaras.map(([cid, dets]) => {
     const cam = t.camaras.find(c => c.id === cid);
     const cuerpo = Object.keys(dets).length ? Object.entries(dets).map(([d, v]) => bloque(d, v)).join("")
-      : `<p class="vacio">Ningún detector produjo valores. ¿La cámara tiene las zonas que necesita? (puerta, acceso, piscina)</p>`;
+      : `<p class="vacio">Ningún detector produjo valores. ¿La cámara tiene las zonas que necesita? (puerta, acceso)</p>`;
     return `<section class="tarjeta"><h2>${escapar(cam ? cam.nombre : cid)}</h2>${cuerpo}</section>`;
   }).join("");
   document.getElementById("tiempos").innerHTML = Object.entries(t.ms_detectores)

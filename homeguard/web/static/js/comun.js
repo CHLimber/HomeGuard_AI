@@ -3,7 +3,6 @@
 // Mismo orden de bits que homeguard/reglas/estado.py
 const ANOMALIAS = [
   { tipo: "intrusion", nombre: "Intrusión", icono: "🚷" },
-  { tipo: "piscina",   nombre: "Piscina",   icono: "🏊" },
   { tipo: "fuego",     nombre: "Fuego",     icono: "🔥" },
   { tipo: "caida",     nombre: "Caída",     icono: "🧍" },
   { tipo: "puerta",    nombre: "Puerta",    icono: "🚪" },

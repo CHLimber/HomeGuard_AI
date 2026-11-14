@@ -36,7 +36,7 @@ x AND 0   = 0      (0000 0000 los apaga todos)
 
 **Dónde:** `aplicar_mascara`, `combinar_mascaras(modo="and")`, `porcentaje_activos`.
 
-Cada zona dibujada en el dashboard (puerta, piscina, cocina…) se convierte una sola vez en una
+Cada zona dibujada en el dashboard (puerta, acceso, cocina…) se convierte una sola vez en una
 máscara 0/255. Después, un AND la aplica a cualquier frame:
 
 ```
@@ -207,22 +207,21 @@ eso no se puede hacer con `inRange`.
 
 **Dónde:** `homeguard/reglas/estado.py` (Python) y `homeguard/web/static/js/comun.js` (JavaScript del panel).
 
-Las 5 anomalías caben en un byte, un bit cada una:
+Las 4 anomalías caben en un byte, un bit cada una:
 
 ```
 INTRUSION = 1 << 0 = 0000 0001 = 1
-PISCINA   = 1 << 1 = 0000 0010 = 2
-FUEGO     = 1 << 2 = 0000 0100 = 4
-CAIDA     = 1 << 3 = 0000 1000 = 8
-PUERTA    = 1 << 4 = 0001 0000 = 16
+FUEGO     = 1 << 1 = 0000 0010 = 2
+CAIDA     = 1 << 2 = 0000 0100 = 4
+PUERTA    = 1 << 3 = 0000 1000 = 8
 ```
 
 | Operación | Código | Ejemplo |
 |---|---|---|
-| encender | `estado \| FUEGO` | `0000 0000 \| 0000 0100 = 0000 0100` (4) |
-| encender otra | `estado \| PUERTA` | `0000 0100 \| 0001 0000 = 0001 0100` (20) |
-| consultar | `estado & (1 << n)` | `0001 0100 & 0000 0100 = 4 ≠ 0` → fuego activo |
-| apagar | `estado & ~FUEGO` | `0001 0100 & 1111 1011 = 0001 0000` (16) |
+| encender | `estado \| FUEGO` | `0000 0000 \| 0000 0010 = 0000 0010` (2) |
+| encender otra | `estado \| PUERTA` | `0000 0010 \| 0000 1000 = 0000 1010` (10) |
+| consultar | `estado & (1 << n)` | `0000 1010 & 0000 0010 = 2 ≠ 0` → fuego activo |
+| apagar | `estado & ~FUEGO` | `0000 1010 & 1111 1101 = 0000 1000` (8) |
 | silenciar | `estado = 0` | todas apagadas |
 
 El servidor manda un solo número por WebSocket y el panel enciende cada indicador con

@@ -2,15 +2,14 @@
 
 Sistema de seguridad residencial **100 % software** (proyecto de feria, Ingeniería en Sistemas de Información,
 UAGRM). Una laptop con Python recibe video de 1 a 3 cámaras (la webcam y celulares con IP Webcam o DroidCam) y
-detecta en tiempo real 5 anomalías:
+detecta en tiempo real 4 anomalías:
 
 | # | Anomalía | Cómo se detecta |
 |---|---|---|
 | 1 | Intrusión | Rostro desconocido en la zona "acceso" (YuNet + SFace, similitud coseno con los residentes) |
-| 2 | Piscina | Persona o mascota en la piscina sin un adulto en el borde, o alguien inmóvil en el agua (YOLOv8n + ByteTrack) |
-| 3 | Fuego / humo | Capa 1 bitwise (color fuego AND movimiento) → capa 2 YOLOv8n fire-smoke |
-| 4 | Caída | Pose (YOLOv8n-pose): cuerpo horizontal + descenso brusco + inmovilidad |
-| 5 | Puerta | Zona de la puerta distinta de la referencia "cerrada" durante 2 s fuera del horario permitido |
+| 2 | Fuego / humo | Capa 1 bitwise (color fuego AND movimiento) → capa 2 YOLOv8n fire-smoke |
+| 3 | Caída | Pose (YOLOv8n-pose): cuerpo horizontal + descenso brusco + inmovilidad |
+| 4 | Puerta | Zona de la puerta distinta de la referencia "cerrada" durante 2 s fuera del horario permitido |
 
 Cuando el motor de reglas confirma una alarma, en paralelo:
 1. el **panel de alarma** (`/alarma`, en un celular o tablet) suena con una sirena, parpadea en rojo y vibra;
@@ -90,7 +89,7 @@ Al arrancar se muestran las direcciones:
 
 | Página | Para qué |
 |---|---|
-| En vivo | Video de cada cámara con zonas y detecciones dibujadas, semáforo de las 5 anomalías, FPS, CPU y RAM. Cada cámara (también las demo) tiene botón **Detener / Activar** |
+| En vivo | Video de cada cámara con zonas y detecciones dibujadas, semáforo de las 4 anomalías, FPS, CPU y RAM. Cada cámara (también las demo) tiene botón **Detener / Activar** |
 | Calibración | Valores crudos de cada detector (similitud, % de píxeles, ratio, ángulo…) al lado de su umbral |
 | Zonas | Dibujar polígonos sobre un frame congelado y capturar la referencia de la puerta cerrada |
 | Residentes | Registrar personas de la casa con 3 a 5 fotos (se guarda solo el vector del rostro) |
@@ -121,7 +120,7 @@ en la base de datos y se aplica encima de `config.yaml`. El botón **Restaurar c
 python -m pytest -q
 ```
 
-Cubren las funciones bitwise, el byte de estado, la votación N de M, el cooldown, los 5 detectores (con los videos
+Cubren las funciones bitwise, el byte de estado, la votación N de M, el cooldown, los 4 detectores (con los videos
 sintéticos y modelos simulados), el motor de punta a punta, la API, el WebSocket con ack y latencia, la reconexión
 de cámaras, la cola de Telegram sin internet y el evaluador.
 

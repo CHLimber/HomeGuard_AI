@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Proyecto
 HomeGuard AI: sistema de seguridad residencial 100 % software para una feria universitaria (UAGRM). Una laptop con
-Python recibe video de 1–3 cámaras (webcam + celulares con IP Webcam/DroidCam por HTTP/MJPEG) y detecta 5 anomalías:
-intrusión (rostro desconocido), piscina, fuego/humo, caída y puerta abierta fuera de horario. Al confirmar una alarma
+Python recibe video de 1–3 cámaras (webcam + celulares con IP Webcam/DroidCam por HTTP/MJPEG) y detecta 4 anomalías:
+intrusión (rostro desconocido), fuego/humo, caída y puerta abierta fuera de horario (la piscina se quitó, `docs/DECISIONES.md` nº 54). Al confirmar una alarma
 la envía por WebSocket al panel `/alarma` (sirena Web Audio), manda una foto por Telegram y la registra en SQLite con
 sus latencias (requisito: menos de 2 s). Requisito académico: el preprocesamiento usa operaciones de bits vectorizadas
 y tiene un benchmark (`docs/BITWISE.md`, `docs/BENCHMARK.md`).
@@ -55,7 +55,7 @@ Telegram tiene su propio hilo con `queue.Queue`.
   y esas anomalías usan 1 de 1 en el motor; las de "cuántos frames" (K consecutivos = N de N, 3 de 5) viven en el motor.
 
 **Modelos caros solo cuando hace falta.** `ctx.detecciones_generales()` corre el YOLO general + ByteTrack de forma
-perezosa, una vez por frame, y lo comparten piscina y rostros. YuNet/SFace corren solo si hay una persona en la zona
+perezosa, una vez por frame, y lo usa rostros. YuNet/SFace corren solo si hay una persona en la zona
 "acceso". El YOLO de fuego corre solo si la capa 1 bitwise supera su umbral. La pose corre cada `cada_n_frames`.
 Los modelos se cargan de forma perezosa en `detectores/modelos.py`. YuNet y SFace no son thread-safe: una instancia
 por hilo, o una con nombre (el alta de residentes usa `instancia="registro"` con un lock).
@@ -113,5 +113,5 @@ Las fases 0–6 y la revisión contra `Contexto_CaludeCode.md` (la especificaci�
 Fase 7 (SIMD en C) tiene el código, pero no se compiló (`docs/PROGRESO.md`). Lo pendiente lo hace el grupo a mano (`docs/GUIA_GRUPO.md`): `.env`
 de Telegram, URLs de los celulares, zonas, residentes, videos de prueba y calibración.
 
-Limitaciones conocidas en `--demo`: el YOLO de fuego no reconoce la llama sintética y YOLO no ve el rectángulo de
-`zona.mp4` como persona, así que fuego y piscina solo se ejercitan por completo en los tests.
+Limitación conocida en `--demo`: el YOLO de fuego no reconoce la llama sintética, así que el fuego solo se
+ejercita por completo en los tests.

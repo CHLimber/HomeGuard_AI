@@ -11,8 +11,6 @@ from homeguard.detectores.base import Contexto, Zona
 
 COLOR_ZONA = {
     "acceso": sv.Color.from_hex("#3b82f6"),
-    "piscina": sv.Color.from_hex("#06b6d4"),
-    "borde_piscina": sv.Color.from_hex("#22c55e"),
     "puerta": sv.Color.from_hex("#eab308"),
     "fuego": sv.Color.from_hex("#f97316"),
 }

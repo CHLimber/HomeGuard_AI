@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         "| Anomalía | Eventos | Panel prom. (ms) | Telegram prom. (ms) |",
         "|---|---:|---:|---:|",
     ]
-    for tipo in ("intrusion", "piscina", "fuego", "caida", "puerta"):
+    for tipo in ("intrusion", "fuego", "caida", "puerta"):
         evs = [e for e in eventos if e.tipo == tipo]
         panel = [e.latencia_panel_ms for e in evs if e.latencia_panel_ms is not None]
         tg = [e.latencia_telegram_ms for e in evs if e.latencia_telegram_ms is not None]

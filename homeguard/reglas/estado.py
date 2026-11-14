@@ -4,27 +4,25 @@ Cada anomalía ocupa un bit de un único entero de 8 bits. El panel web
 decodifica el mismo byte en JavaScript con `estado & (1 << n)`.
 
     bit:     7 6 5 4 3 2 1 0
-                   │ │ │ │ └─ INTRUSION
-                   │ │ │ └─── PISCINA
-                   │ │ └───── FUEGO
-                   │ └─────── CAIDA
-                   └───────── PUERTA
+                       │ │ │ └─ INTRUSION
+                       │ │ └─── FUEGO
+                       │ └───── CAIDA
+                       └─────── PUERTA
 
-Ejemplo: fuego + puerta = 0b0001_0100 = 20.
+Ejemplo: fuego + puerta = 0b0000_1010 = 10.
 """
 from __future__ import annotations
 
 # Informe, ecuación del byte de estado y Anexo A: bit n = 1 << n
 INTRUSION = 1 << 0  # 1
-PISCINA = 1 << 1    # 2
-FUEGO = 1 << 2      # 4
-CAIDA = 1 << 3      # 8
-PUERTA = 1 << 4     # 16
+FUEGO = 1 << 1      # 2
+CAIDA = 1 << 2      # 4
+PUERTA = 1 << 3     # 8
 
 # nombre de anomalía -> número de bit (mismo orden que usa el panel)
-BIT_POR_TIPO: dict[str, int] = {"intrusion": 0, "piscina": 1, "fuego": 2, "caida": 3, "puerta": 4}
+BIT_POR_TIPO: dict[str, int] = {"intrusion": 0, "fuego": 1, "caida": 2, "puerta": 3}
 MASCARA_POR_TIPO: dict[str, int] = {tipo: 1 << bit for tipo, bit in BIT_POR_TIPO.items()}
-TODAS = INTRUSION | PISCINA | FUEGO | CAIDA | PUERTA  # 0b11111 = 31
+TODAS = INTRUSION | FUEGO | CAIDA | PUERTA  # 0b1111 = 15
 
 
 def activar(estado: int, tipo: str) -> int:

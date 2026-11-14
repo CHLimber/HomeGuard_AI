@@ -48,24 +48,24 @@ preproceso:
 #   - la ruta de una carpeta con imágenes (presentación en bucle, en orden alfabético;
 #     cada imagen se muestra "segundos_por_imagen" segundos, por defecto 3)
 # "detectores": qué anomalías se buscan en esa cámara. Los que dependen de
-# zonas (rostros, piscina, puerta) solo corren si la cámara tiene esa zona.
+# zonas (rostros, puerta) solo corren si la cámara tiene esa zona.
 # -----------------------------------------------------------------------------
 camaras:
   laptop:
     nombre: Webcam de la laptop
     fuente: 0
     activa: true
-    detectores: [rostros, fuego, caidas, puerta, piscina]
+    detectores: [rostros, fuego, caidas, puerta]
   celular1:
     nombre: Celular 1 (entrada)
     fuente: http://192.168.1.50:8080/video
     activa: false
     detectores: [rostros, puerta]
   celular2:
-    nombre: Celular 2 (patio / piscina)
+    nombre: Celular 2 (patio)
     fuente: http://192.168.1.51:8080/video
     activa: false
-    detectores: [piscina, fuego, caidas]
+    detectores: [fuego, caidas]
 
 # -----------------------------------------------------------------------------
 # Motor de reglas: es el ÚNICO que decide si suena la alarma.
@@ -76,7 +76,6 @@ camaras:
 # -----------------------------------------------------------------------------
 alarmas:
   intrusion: {votos_n: 5, votos_m: 5, cooldown_s: 30}   # N = M => K frames consecutivos con rostro desconocido
-  piscina:   {votos_n: 3, votos_m: 5, cooldown_s: 30}
   fuego:     {votos_n: 3, votos_m: 5, cooldown_s: 30}   # capa 2 > umbral en 3 de 5 frames
   caida:     {votos_n: 1, votos_m: 1, cooldown_s: 30}   # el detector ya exige descenso + 3 s de inmovilidad
   puerta:    {votos_n: 1, votos_m: 1, cooldown_s: 30}   # el detector ya exige 2 s de cambio sostenido
@@ -84,8 +83,8 @@ alarmas:
 motor:
   auto_limpiar_s: 0   # segundos tras los cuales el estado vuelve solo a 0 (0 = queda sonando hasta "SILENCIAR")
 
-# YOLOv8n general (COCO). Se comparte entre piscina y rostros (para saber si hay
-# alguien en la zona "acceso"), así corre una sola vez por frame.
+# YOLOv8n general (COCO). Lo usa rostros (para saber si hay alguien en la zona
+# "acceso"), así corre una sola vez por frame.
 yolo_general:
   modelo: models/yolov8n.pt
   confianza: 0.40          # confianza mínima de una detección de persona/mascota
@@ -101,12 +100,6 @@ detectores:
     tamano_min_rostro_px: 40     # rostros más chicos que esto (en la imagen original) se ignoran
     usar_resolucion_original: true  # busca rostros en el frame a resolución completa (mejor a distancia)
     exigir_persona_yolo: true    # solo busca rostros si YOLO ve una persona dentro de la zona "acceso"
-
-  piscina:
-    tiempo_sin_supervisor_s: 2.0      # (a) segundos con alguien en la piscina sin adulto en el borde antes de marcar
-    inmovil_desplazamiento_px: 15     # (b) si el centro se mueve menos que esto (px del frame de proceso)...
-    inmovil_tiempo_s: 8.0             # ...durante este tiempo dentro de la piscina => posible ahogamiento
-    olvidar_track_s: 3.0              # se descarta el historial de un tracker_id que no aparece en este tiempo
 
   fuego:
     modelo: models/fire_smoke_yolov8n.pt
@@ -177,15 +170,8 @@ demo:
       fuente: data/videos_prueba/sinteticos/fuego.mp4
       activa: true
       detectores: [fuego]
-    demo_zona:
-      nombre: Demo - objeto que entra a una zona (sintético)
-      fuente: data/videos_prueba/sinteticos/zona.mp4
-      activa: true
-      detectores: [piscina]
   # Zonas que se crean solas en la BD demo si la cámara no tiene ninguna.
   # Coordenadas normalizadas (0-1) respecto del ancho/alto del frame.
   zonas:
     - {camara: demo_puerta, nombre: Puerta principal, tipo: puerta, puntos: [[0.40, 0.20], [0.60, 0.20], [0.60, 0.85], [0.40, 0.85]]}
     - {camara: demo_fuego, nombre: Cocina, tipo: fuego, puntos: [[0.20, 0.25], [0.80, 0.25], [0.80, 0.90], [0.20, 0.90]]}
-    - {camara: demo_zona, nombre: Piscina, tipo: piscina, puntos: [[0.50, 0.30], [0.95, 0.30], [0.95, 0.90], [0.50, 0.90]]}
-    - {camara: demo_zona, nombre: Borde, tipo: borde_piscina, puntos: [[0.35, 0.30], [0.48, 0.30], [0.48, 0.90], [0.35, 0.90]]}

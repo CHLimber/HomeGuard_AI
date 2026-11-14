@@ -11,7 +11,7 @@ python -m pytest -q
 ```
 
 No necesitan cámaras ni modelos (usan videos sintéticos y modelos simulados). Ver la lista de casos en
-`tests/`. Cubren: funciones bitwise, byte de estado, votación N de M, cooldown, los 5 detectores, el motor de punta a
+`tests/`. Cubren: funciones bitwise, byte de estado, votación N de M, cooldown, los 4 detectores, el motor de punta a
 punta, la API y el WebSocket (con ack y latencia), la reconexión de cámaras, la cola de Telegram sin internet y el
 evaluador.
 
@@ -28,7 +28,6 @@ Para cada anomalía, grabá con **la misma cámara y el mismo encuadre que vas a
 | Anomalía | Positivos (ejemplos) | Negativos (ejemplos) |
 |---|---|---|
 | intrusión | persona NO registrada mira a la cámara en la zona de acceso | residentes registrados entrando; persona de espaldas |
-| piscina | niño/muñeco o mascota en la zona sin adulto en el borde; persona quieta > 10 s en el agua | adulto en el borde mientras alguien está en el agua; nadie en la piscina |
 | fuego | vela/encendedor/fogata en la zona (con cuidado), video de fuego real en una pantalla | objeto naranja quieto, luz cálida, persona con ropa naranja moviéndose |
 | caída | caída sobre colchoneta y quedarse quieto > 5 s | sentarse, agacharse, acostarse despacio, caer y levantarse enseguida |
 | puerta | abrir la puerta y dejarla abierta > 2 s | puerta cerrada con gente pasando delante; cambio de luz |
@@ -37,7 +36,6 @@ Evaluación de cada detector:
 
 ```bash
 python scripts/evaluar_detector.py --detector rostros --carpeta data/videos_prueba/intrusion --zonas-de celular1
-python scripts/evaluar_detector.py --detector piscina --carpeta data/videos_prueba/piscina   --zonas-de celular2
 python scripts/evaluar_detector.py --detector fuego   --carpeta data/videos_prueba/fuego
 python scripts/evaluar_detector.py --detector caidas  --carpeta data/videos_prueba/caida
 python scripts/evaluar_detector.py --detector puerta  --carpeta data/videos_prueba/puerta    --zonas-de celular1
@@ -53,11 +51,6 @@ Definiciones: **VP** = positivo que disparó · **FN** = positivo que no dispar�
 <!-- rostros:INICIO -->
 _Pendiente: ejecutar `scripts/evaluar_detector.py --detector rostros ...`._
 <!-- rostros:FIN -->
-
-### Piscina
-<!-- piscina:INICIO -->
-_Pendiente: ejecutar `scripts/evaluar_detector.py --detector piscina ...`._
-<!-- piscina:FIN -->
 
 ### Fuego / humo
 <!-- fuego:INICIO -->

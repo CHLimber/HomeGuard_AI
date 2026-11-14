@@ -6,9 +6,8 @@ Uso:
 Videos (640x480, 15 FPS, 12 s, fondo fijo con ruido leve de sensor):
   - puerta.mp4: puerta cerrada 0-4 s, abierta (cambio brusco) 4-9 s, cerrada 9-12 s.
   - fuego.mp4:  objeto naranja que parpadea dentro de la zona "Cocina" entre 3 y 10 s.
-  - zona.mp4:   rectángulo que entra a la zona "Piscina" y se queda quieto.
 Cada video se acompaña de un .json con la verdad de terreno (ground truth) por frame,
-que usan los tests (por ej. las cajas del rectángulo para simular detecciones de YOLO).
+que usan los tests (por ej. los instantes en que la puerta está abierta).
 """
 from __future__ import annotations
 
@@ -89,31 +88,10 @@ def generar_fuego(ruta: Path) -> None:
     _escribir(ruta, frames, {"fps": FPS, "fuego": activo, "descripcion": "llama naranja 3-10 s"})
 
 
-def generar_zona(ruta: Path) -> None:
-    rng = np.random.default_rng(3)
-    fondo = _fondo(30)
-    cv2.rectangle(fondo, (int(0.5 * ANCHO), int(0.3 * ALTO)), (int(0.95 * ANCHO), int(0.9 * ALTO)), (170, 140, 40), -1)
-    frames, cajas = [], []
-    w, h = 50, 140
-    for i in range(FPS * SEGUNDOS):
-        t = i / FPS
-        # entra caminando de izquierda a derecha durante 5 s y luego queda inmóvil dentro de la "piscina"
-        x = int(20 + min(t, 5.0) / 5.0 * 420)
-        y = 260
-        img = fondo.copy()
-        cv2.rectangle(img, (x, y), (x + w, y + h), (60, 60, 200), -1)
-        cv2.circle(img, (x + w // 2, y - 18), 18, (150, 180, 220), -1)
-        frames.append(_ruido(img, rng))
-        cajas.append([x, y - 36, x + w, y + h])
-    _escribir(ruta, frames, {"fps": FPS, "cajas_persona": cajas,
-                             "descripcion": "entra a la zona en ~3.5 s y queda inmóvil desde 5 s"})
-
-
 def generar_todos(carpeta: Path) -> list[Path]:
-    rutas = [carpeta / "puerta.mp4", carpeta / "fuego.mp4", carpeta / "zona.mp4"]
+    rutas = [carpeta / "puerta.mp4", carpeta / "fuego.mp4"]
     generar_puerta(rutas[0])
     generar_fuego(rutas[1])
-    generar_zona(rutas[2])
     return rutas
 
 

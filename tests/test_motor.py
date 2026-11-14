@@ -6,7 +6,7 @@ from homeguard.reglas.motor import MotorReglas
 
 def motor(n=3, m=5, cooldown=10.0, auto_limpiar=0.0) -> MotorReglas:
     regla = CfgAlarma(votos_n=n, votos_m=m, cooldown_s=cooldown)
-    alarmas = CfgAlarmas(intrusion=regla, piscina=regla, fuego=regla, caida=regla, puerta=regla)
+    alarmas = CfgAlarmas(intrusion=regla, fuego=regla, caida=regla, puerta=regla)
     return MotorReglas(alarmas, CfgMotor(auto_limpiar_s=auto_limpiar))
 
 
@@ -102,7 +102,7 @@ def test_punta_a_punta_varios_detectores():
         lote = [
             obs(i % 2 == 0, t, tipo="fuego", zona="cocina"),               # 1 de cada 2 => 3 de 5 se cumple
             obs(i >= 15, t, tipo="intrusion", zona="entrada"),             # 5 consecutivos al final
-            obs(i in (3, 7, 11), t, tipo="piscina", zona="pileta"),        # disperso: nunca 3 de 5
+            obs(i in (3, 7, 11), t, tipo="fuego", zona="sala"),            # disperso: nunca 3 de 5
             obs(i == 19, t, tipo="puerta", zona="principal", cam="cam2"),  # 1 de 1
         ]
         disparos += mt.procesar(lote)

@@ -75,16 +75,14 @@ y nombre → **Guardar zona**.
 | Tipo | Dónde dibujarla | La necesita |
 |---|---|---|
 | `acceso` | donde se para alguien que entra (frente a la puerta, a la altura de la cara) | intrusión |
-| `piscina` | el agua (o lo que la represente en la maqueta) | piscina |
-| `borde_piscina` | donde se para el adulto que supervisa | piscina |
 | `puerta` | **solo la hoja de la puerta**, ajustado | puerta |
 | `fuego` (opcional) | dónde puede haber fuego (cocina). Sin esta zona se mira la imagen completa | fuego |
 
 En la zona `puerta`: con la puerta **cerrada** y sin nadie delante, tocá **Capturar referencia (puerta cerrada)**.
 Repetilo si cambia mucho la iluminación del lugar.
 
-Las zonas se dibujan sobre los pies de las personas (el sistema usa el punto inferior central de cada persona): la
-zona de la piscina tiene que incluir el piso o el agua donde estaría la persona, no solo su cabeza.
+La zona `acceso` se evalúa con el punto inferior central de cada persona: tiene que incluir el piso donde se para
+quien entra, no solo su cabeza.
 
 ✅ En Dashboard → En vivo se ven los polígonos de colores sobre el video.
 
@@ -132,11 +130,10 @@ se ven en **rojo**. Ajustá en **Configuración** (se aplica al instante):
 | Fuego: la capa 2 nunca corre | `capa1 pct color y movimiento` | bajar `umbral_capa1_pct` o ampliar `hue_max` / bajar `sat_min` |
 | Fuego: falsas alarmas con luces | `capa2 confianza` | subir `confianza_capa2` o `alarmas.fuego.votos_n` |
 | Caídas no detectadas | `ratio`, `angulo torso`, `descenso relativo`, `segundos inmóvil` | si no hay personas: subir `caidas.imgsz` o bajar `caidas.confianza`; si no hay descenso: bajar `descenso_min_relativo`; si los segundos no llegan al umbral: subir `inmovil_desplazamiento_relativo` o bajar `inmovil_tiempo_s`; cámara fija, lateral y a la altura de la cintura o más alta |
-| Piscina suena con un adulto presente | `supervisores en borde` = 0 | ampliar la zona `borde_piscina` (tiene que contener los pies del adulto) |
 | Va lento (FPS bajos) | En vivo → FPS, ms/frame | bajar `procesamiento.imgsz_yolo` (ej. 416 o 320) o `fps_objetivo`; subir `caidas.cada_n_frames` |
 
 Para la demo, quizás quieran **bajar los tiempos** para que el público no espere tanto: por ejemplo
-`detectores.piscina.inmovil_tiempo_s` de 8 a 5. Para las caídas ya viene en 3 s (el informe ya lo dice; está anotado
+`detectores.puerta.duracion_min_s` de 2 a 1. Para las caídas ya viene en 3 s (el informe ya lo dice; está anotado
 en `docs/DECISIONES.md`, nº 52 y 53). Anótenlo en la defensa.
 
 Si se rompe algo de la configuración: **Configuración → Restaurar config.yaml**.
@@ -174,8 +171,8 @@ en el celular, la captura normal. Guárdenlas en PNG con el nombre indicado.
 | Archivo | Qué tiene que verse | Cómo obtenerla |
 |---|---|---|
 | `J1_panel_alarma.png` | Panel `/alarma` en rojo con el indicador de la anomalía encendido, la foto, el tipo, la zona y la hora del evento | Celular/tablet del panel, después de **ARMAR ALARMA**, mientras suena una alarma (por ejemplo, abrir la puerta fuera de horario). Captura desde el propio celular |
-| `J2_en_vivo.png` | En vivo con las cajas de YOLO, las zonas dibujadas, las etiquetas, el semáforo de las 5 anomalías y FPS/CPU | Dashboard → **En vivo** con una persona en la maqueta. Si se puede, que se vea un semáforo en rojo |
-| `J3_editor_zonas.png` | Editor de zonas con el frame congelado y los polígonos de las zonas (acceso, piscina, borde, puerta, fuego) | Dashboard → **Zonas** → elegir la cámara → congelar el frame. Para la puerta, que se vea también la vista previa de la referencia |
+| `J2_en_vivo.png` | En vivo con las cajas de YOLO, las zonas dibujadas, las etiquetas, el semáforo de las 4 anomalías y FPS/CPU | Dashboard → **En vivo** con una persona en la maqueta. Si se puede, que se vea un semáforo en rojo |
+| `J3_editor_zonas.png` | Editor de zonas con el frame congelado y los polígonos de las zonas (acceso, puerta, fuego) | Dashboard → **Zonas** → elegir la cámara → congelar el frame. Para la puerta, que se vea también la vista previa de la referencia |
 | `J4_calibracion.png` | Valores crudos de cada detector junto a su umbral, alguno en rojo, y la probabilidad de falsa alarma N de M | Dashboard → **Calibración** mientras provocan una situación (abrir la puerta, mostrar la llama) |
 | `J5_historial.png` | Tabla del historial con miniaturas, confianza y latencias (verdes si son < 2 s) | Dashboard → **Historial** después de la sesión de pruebas, con eventos de varios tipos |
 | `J6_telegram.png` | Mensaje del bot con la foto del evento, el tipo, la zona y la hora | Celular del dueño (o del grupo de Telegram) al recibir una alarma |
@@ -211,7 +208,6 @@ Telegram y queda en el Historial con sus latencias.
 | Anomalía | Qué conseguir | Notas |
 |---|---|---|
 | Intrusión | Video o foto de una persona de frente, con la cara grande y visible | Que **no** esté registrada en Residentes |
-| Piscina | Video o foto de alguien dentro de una piscina | Con «todo el cuadro» como zona alcanza con que aparezca una persona 2 s |
 | Fuego | Video de una llama real (vela, fogata, hornalla) o una foto de fuego | Un dibujo o una luz naranja no dispara: lo confirma el YOLO de fuego |
 | Caída | **Video** de alguien de pie que cae al piso y se queda en el suelo 3 s o más | Con fotos: 1 de pie y 2 en el suelo, en el mismo lugar del cuadro. Una foto rotada no sirve |
 | Puerta | Video con cámara fija: puerta cerrada al principio, después se abre 2 s o más | Fotos: 1 cerrada y 2 abierta. **Dibujar la zona sobre la puerta** |

@@ -34,8 +34,7 @@ from scripts.reporte_latencias import resumen  # noqa: E402
 RUTA_BENCHMARK = RAIZ / "docs" / "benchmark.csv"
 CARPETA_SALIDA = RAIZ / "docs" / "informe"
 POR_MEDIR = "Por medir"
-NOMBRE_DETECTOR = {"rostros": "Intrusión (rostros)", "piscina": "Piscina", "fuego": "Fuego / humo",
-                   "caidas": "Caídas", "puerta": "Puerta"}
+NOMBRE_DETECTOR = {"rostros": "Intrusión (rostros)", "fuego": "Fuego / humo", "caidas": "Caídas", "puerta": "Puerta"}
 # Fila de resumen que escribe evaluar_detector.py: | VP | FP | VN | FN | Precisión | Recall | F1 | Exactitud |
 FILA_METRICAS = re.compile(r"^\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|"
                            r"\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*$", re.M)

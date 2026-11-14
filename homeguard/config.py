@@ -24,9 +24,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 RAIZ = Path(__file__).resolve().parent.parent
 RUTA_CONFIG = RAIZ / "config.yaml"
 
-TIPOS_ANOMALIA = ("intrusion", "piscina", "fuego", "caida", "puerta")
-TIPOS_ZONA = ("acceso", "piscina", "borde_piscina", "puerta", "fuego")
-NOMBRES_DETECTOR = ("rostros", "piscina", "fuego", "caidas", "puerta")
+TIPOS_ANOMALIA = ("intrusion", "fuego", "caida", "puerta")
+TIPOS_ZONA = ("acceso", "puerta", "fuego")
+NOMBRES_DETECTOR = ("rostros", "fuego", "caidas", "puerta")
 
 
 class _Base(BaseModel):
@@ -76,7 +76,7 @@ class CfgCamara(_Base):
     fuente: int | str
     activa: bool = True
     segundos_por_imagen: float = Field(3.0, gt=0)
-    detectores: list[Literal["rostros", "piscina", "fuego", "caidas", "puerta"]] = Field(default_factory=list)
+    detectores: list[Literal["rostros", "fuego", "caidas", "puerta"]] = Field(default_factory=list)
 
 
 class CfgAlarma(_Base):
@@ -95,7 +95,6 @@ class CfgAlarma(_Base):
 
 class CfgAlarmas(_Base):
     intrusion: CfgAlarma
-    piscina: CfgAlarma
     fuego: CfgAlarma
     caida: CfgAlarma
     puerta: CfgAlarma
@@ -120,13 +119,6 @@ class CfgRostros(_Base):
     tamano_min_rostro_px: int = Field(40, ge=0)
     usar_resolucion_original: bool = True
     exigir_persona_yolo: bool = True
-
-
-class CfgPiscina(_Base):
-    tiempo_sin_supervisor_s: float = Field(2.0, ge=0)
-    inmovil_desplazamiento_px: float = Field(15, ge=0)
-    inmovil_tiempo_s: float = Field(8.0, gt=0)
-    olvidar_track_s: float = Field(3.0, gt=0)
 
 
 class CfgFuego(_Base):
@@ -181,7 +173,6 @@ class CfgPuerta(_Base):
 
 class CfgDetectores(_Base):
     rostros: CfgRostros
-    piscina: CfgPiscina
     fuego: CfgFuego
     caidas: CfgCaidas
     puerta: CfgPuerta
@@ -203,7 +194,7 @@ class CfgPanel(_Base):
 class CfgZonaDemo(_Base):
     camara: str
     nombre: str
-    tipo: Literal["acceso", "piscina", "borde_piscina", "puerta", "fuego"]
+    tipo: Literal["acceso", "puerta", "fuego"]
     puntos: list[list[float]]
 
 

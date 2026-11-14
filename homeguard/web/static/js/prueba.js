@@ -1,7 +1,6 @@
 // Página "Prueba con video": subir, reproducir y borrar medios de prueba (modo exposición).
 const DETECTORES = [
   { clave: "rostros", nombre: "🚷 Intrusión" },
-  { clave: "piscina", nombre: "🏊 Piscina" },
   { clave: "fuego",   nombre: "🔥 Fuego" },
   { clave: "caidas",  nombre: "🧍 Caída" },
   { clave: "puerta",  nombre: "🚪 Puerta" },
@@ -58,7 +57,7 @@ function avisos(datos) {
   if (medio && medio.detectores.includes("puerta"))
     lista.push("Puerta: tiene que cambiar el 25 % de la zona. Si la puerta no ocupa casi todo el cuadro, dibujá la zona sobre la puerta (botón «Zonas») y tocá «Reiniciar».");
   if (medio && !medio.zonas.length && medio.detectores.some(d => d !== "caidas"))
-    lista.push("Esta prueba no tiene zonas: intrusión, piscina y puerta necesitan una. Dibujala en Zonas.");
+    lista.push("Esta prueba no tiene zonas: intrusión y puerta necesitan una. Dibujala en Zonas.");
   document.getElementById("avisos").innerHTML = lista.map(t => `<div class="mensaje error">${escapar(t)}</div>`).join("");
 }
 

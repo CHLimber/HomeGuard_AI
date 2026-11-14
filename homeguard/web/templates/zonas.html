@@ -20,8 +20,6 @@
     <label for="tipo">Tipo</label>
     <select id="tipo" style="width:100%;margin-bottom:10px">
       <option value="acceso">acceso — reconoce rostros (intrusión)</option>
-      <option value="piscina">piscina — personas/mascotas en el agua</option>
-      <option value="borde_piscina">borde_piscina — donde está el adulto que supervisa</option>
       <option value="puerta">puerta — compara con la puerta cerrada</option>
       <option value="fuego">fuego — limita dónde se busca fuego</option>
     </select>
@@ -40,7 +38,7 @@
 {% endblock %}
 {% block scripts %}
 <script>
-const COLORES = { acceso: "#3b82f6", piscina: "#06b6d4", borde_piscina: "#22c55e", puerta: "#eab308", fuego: "#f97316" };
+const COLORES = { acceso: "#3b82f6", puerta: "#eab308", fuego: "#f97316" };
 const lienzo = document.getElementById("lienzo"), g = lienzo.getContext("2d");
 const imagen = new Image();
 let puntos = [], zonas = [];

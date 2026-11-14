@@ -36,7 +36,7 @@ class Zona:
     id: int
     camara_id: str
     nombre: str
-    tipo: str                      # acceso, piscina, borde_piscina, puerta, fuego
+    tipo: str                      # acceso, puerta, fuego
     puntos: list[list[float]]      # coordenadas normalizadas 0-1
     referencia: str | None = None  # ruta de la imagen de referencia (zona puerta)
 
@@ -47,7 +47,7 @@ class Zona:
 
 @dataclass
 class PosibleEvento:
-    tipo: str                 # intrusion, piscina, fuego, caida, puerta
+    tipo: str                 # intrusion, fuego, caida, puerta
     camara_id: str
     zona: str                 # nombre de la zona (ZONA_GLOBAL si es toda la imagen)
     activo: bool              # ¿se cumple la condición en este frame?
@@ -172,8 +172,8 @@ class Contexto:
 
 
 class Detector(ABC):
-    nombre: str = ""  # nombre en config.yaml (rostros, piscina, fuego, caidas, puerta)
-    tipo: str = ""    # anomalía que reporta (intrusion, piscina, fuego, caida, puerta)
+    nombre: str = ""  # nombre en config.yaml (rostros, fuego, caidas, puerta)
+    tipo: str = ""    # anomalía que reporta (intrusion, fuego, caida, puerta)
 
     @abstractmethod
     def procesar(self, frame: np.ndarray, ctx: Contexto) -> list[PosibleEvento]:

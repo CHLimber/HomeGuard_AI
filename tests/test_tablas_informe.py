@@ -44,7 +44,7 @@ def test_sin_datos_todo_por_medir(tmp_path):
     texto = ruta_md.read_text(encoding="utf-8")
     assert texto.count("Por medir") >= 3
     detectores = _leer_csv(tmp_path / "salida" / "detectores.csv")
-    assert len(detectores) == 6 and all(c == "Por medir" for f in detectores[1:] for c in f[1:])
+    assert len(detectores) == 5 and all(c == "Por medir" for f in detectores[1:] for c in f[1:])
     assert len(_leer_csv(tmp_path / "salida" / "benchmark.csv")) == 1  # solo el encabezado
 
 

@@ -1,7 +1,7 @@
 """Carga perezosa (lazy) y compartida de los modelos.
 
 Los modelos se cargan la primera vez que se usan: si una cámara no tiene
-zona "piscina", nunca se carga el YOLO general, etc. Así el arranque es rápido
+zona "acceso", nunca se carga el YOLO general, etc. Así el arranque es rápido
 y los tests que no usan modelos no los necesitan.
 """
 from __future__ import annotations

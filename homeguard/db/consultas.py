@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from sqlalchemy import select
 
-from homeguard.config import Config, cargar_config
+from homeguard.config import TIPOS_ZONA, Config, cargar_config
 from homeguard.db import modelos as m
 from homeguard.db.sesion import BaseDatos
 from homeguard.detectores.base import Zona
@@ -18,11 +18,22 @@ from homeguard.detectores.base import Zona
 PREFIJO_INTERNO = "_"
 CLAVE_ARMADO = "_sistema.armado"
 
+# La anomalía "piscina" se quitó del sistema. Una BD anterior puede conservar overrides suyos: con
+# extra="forbid" invalidarían TODOS los overrides, así que se descartan al leerlos.
+PREFIJOS_OBSOLETOS = ("detectores.piscina.", "alarmas.piscina.")
+DETECTORES_OBSOLETOS = {"piscina"}
+
+
+def _limpiar_obsoletos(clave: str, valor: Any) -> Any:
+    if isinstance(valor, list) and clave.endswith(".detectores"):  # camaras.<id>.detectores
+        return [d for d in valor if d not in DETECTORES_OBSOLETOS]
+    return valor
+
 
 def leer_overrides(bd: BaseDatos) -> dict[str, Any]:
     with bd.sesion() as s:
-        return {o.clave: o.valor for o in s.scalars(select(m.ConfigOverride))
-                if not o.clave.startswith(PREFIJO_INTERNO)}
+        return {o.clave: _limpiar_obsoletos(o.clave, o.valor) for o in s.scalars(select(m.ConfigOverride))
+                if not o.clave.startswith(PREFIJO_INTERNO) and not o.clave.startswith(PREFIJOS_OBSOLETOS)}
 
 
 def leer_armado(bd: BaseDatos) -> bool:
@@ -49,7 +60,7 @@ def zonas_de_camara(bd: BaseDatos, camara_id: str) -> list[Zona]:
     with bd.sesion() as s:
         filas = s.scalars(select(m.Zona).where(m.Zona.camara_id == camara_id).order_by(m.Zona.id))
         return [Zona(id=z.id, camara_id=z.camara_id, nombre=z.nombre, tipo=z.tipo, puntos=z.puntos,
-                     referencia=z.referencia) for z in filas]
+                     referencia=z.referencia) for z in filas if z.tipo in TIPOS_ZONA]  # ignora zonas de tipos quitados
 
 
 def embeddings_residentes(bd: BaseDatos) -> tuple[np.ndarray, list[str]]:

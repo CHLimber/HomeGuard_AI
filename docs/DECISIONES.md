@@ -42,7 +42,7 @@ funcione en una demo en vivo**.
 13. **Los detectores emiten observaciones positivas y negativas** (`PosibleEvento.activo`). La votación N de M
     necesita saber cuántos frames se evaluaron, no solo los positivos.
 14. **"K frames consecutivos" (intrusión) y "3 de 5" (fuego) los resuelve el mismo motor**: K consecutivos es N = M = K.
-15. **Las reglas temporales propias de cada anomalía (2 s de puerta abierta, 5 s de inmovilidad, N s de piscina)
+15. **Las reglas temporales propias de cada anomalía (2 s de puerta abierta, 3 s de inmovilidad en caídas)
     viven en el detector**, y el motor usa 1 de 1 para esas anomalías. Las reglas de "cuántos frames" viven en el
     motor. Así cada regla está en un solo lugar.
 16. **Tiempo inyectado (`ctx.t`).** Los detectores nunca llaman a `time.time()`, lo que permite testear con videos
@@ -55,7 +55,7 @@ funcione en una demo en vivo**.
     (`referencia_automatica`). El desenfoque previo usa `k | 1` para asegurar un kernel impar.
 20. **Fuego:** sin zonas de tipo "fuego" se analiza la imagen completa. La capa 2 corre una sola vez por frame sobre
     la imagen completa, y sus detecciones se asocian a la zona cuyo recuadro contiene su centro.
-21. **Piscina:** el "supervisor" tiene que ser una persona (las mascotas no supervisan). La regla (a) exige
+21. **Piscina (anomalía quitada, ver nº 54; se conserva como registro de lo que se decidió):** el "supervisor" tiene que ser una persona (las mascotas no supervisan). La regla (a) exige
     `tiempo_sin_supervisor_s` (2 s) para no disparar si alguien cruza la piscina un instante; esto se agregó porque
     el pedido no fija ese tiempo. La pertenencia a la zona usa el punto inferior central del bbox (los pies), que es
     lo habitual con `PolygonZone`.
@@ -114,24 +114,23 @@ funcione en una demo en vivo**.
 
 ## Pruebas
 
-37. **Videos sintéticos + verdad de terreno (`.json`).** El rectángulo del video "zona" no es una persona para YOLO,
-    así que en los tests se reemplaza el YOLO por las cajas reales del JSON. Se prueban las zonas, ByteTrack, las
-    reglas y el motor sin depender del modelo. La pose y los rostros se prueban con secuencias simuladas. Los
-    modelos reales se verificaron aparte sobre una foto de ejemplo (ver PROGRESO.md).
+37. **Videos sintéticos + verdad de terreno (`.json`).** Los videos sintéticos (puerta y fuego) traen en un `.json`
+    la verdad de terreno por frame. La pose, los rostros y el YOLO de fuego se prueban con secuencias simuladas a
+    partir de ella. Los modelos reales se verificaron aparte sobre una foto de ejemplo (ver PROGRESO.md). (El video
+    «zona», con un rectángulo que YOLO no ve como persona, era el de la piscina y se quitó con ella, nº 54.)
 38. **El evaluador (`evaluar_detector.py`) analiza los videos al ritmo de `fps_objetivo`** (salteando frames), porque
     las reglas cuentan frames analizados. Usa una hora fija de madrugada e ignora el horario permitido de la puerta:
     mide la detección, no el horario.
 
 ## Coherencia con el informe (Anexo C) y agregados del contexto v2
 
-39. **Valores por defecto alineados con el Anexo C** (31/10/2026): cooldown 30 s para las 5 anomalías (antes 60 y
-    120 en caídas), score de YuNet 0,90 (antes 0,70), inmovilidad en piscina 8 s (antes 10), umbral de la capa 1 de
+39. **Valores por defecto alineados con el Anexo C** (31/10/2026): cooldown 30 s para todas las anomalías (antes 60 y
+    120 en caídas), score de YuNet 0,90 (antes 0,70), umbral de la capa 1 de
     fuego 0,5 % (antes 0,30), confianza de keypoints 0,50 (antes 0,30), umbral de diferencia de la puerta 30 (antes
     35), timeout de Telegram 5 s (antes 10). Se ajustan en la feria con la página Calibración. Si un valor
     calibrado termina distinto del informe, se anota acá.
 40. **Diferencias con el Anexo C que se mantienen** (son cambios de forma o de unidad, no de criterio):
     - Votación N/M por anomalía en lugar de un único 3 de 5 (decisiones 14 y 15).
-    - Inmovilidad en piscina en px del frame de proceso (15 px ≈ 0,023 del ancho a 640 px) en lugar de normalizada (0,02).
     - Descenso de la caída relativo a la altura de la persona (0,25) en lugar de la altura del frame (0,20):
       no depende de la distancia a la cámara.
     - Porcentaje de la puerta en % (25,0) en lugar de fracción (0,25).
@@ -174,7 +173,7 @@ funcione en una demo en vivo**.
     confirma igual. Se verificó con modelos reales: foto de fogata → capa 1 57,8 %, YOLO 0,64 → alarma.
 48. **«Reproducir» borra votos y cooldown de esa cámara** (`MotorReglas.reiniciar_camara`), para poder repetir la
     demostración en cada visita. No toca las demás cámaras.
-49. **Zona de cuadro completo por defecto.** Sirve para intrusión, piscina y fuego. Para la puerta casi nunca:
+49. **Zona de cuadro completo por defecto.** Sirve para intrusión y fuego. Para la puerta casi nunca:
     tiene que cambiar el 25 % de la zona, y una puerta que ocupa una franja del cuadro cambia ~10 %. La página lo
     avisa y lleva a Zonas para dibujarla.
 50. **Precarga de modelos al arrancar** (`procesamiento.precargar_modelos`). Cargar y hacer la primera inferencia
@@ -204,3 +203,19 @@ funcione en una demo en vivo**.
     regiones con movimiento y el benchmark reporta la mediana sin medir CPU. Se agregó la Tabla 8 con las cinco
     variantes, incluido que a igual área HSV de OpenCV es más rápido que la tabla de bits, y el Anexo J con capturas
     en `--demo`. El dato del Atlas se cita por prensa (Opinión, 2024) porque no se halló la fuente oficial.
+54. **Se quita la anomalía «piscina» (07/11/2026).** Era la más débil de las cinco: en la feria no hay piscina, así
+    que había que simularla con una maqueta; YOLO no reconoce de forma confiable un muñeco como persona; en `--demo`
+    nunca disparaba (solo se ejercitaba en los tests); y sumaba reglas (supervisor en el borde, inmovilidad) sin
+    mediciones. Quedan 4 anomalías: intrusión, fuego, caída y puerta. Qué se eliminó: el detector, las zonas
+    `piscina` y `borde_piscina`, `alarmas.piscina` y `detectores.piscina` de `config.yaml`, la cámara y el video
+    sintético `zona.mp4` de la demo, y sus tests. Consecuencias:
+    - **El byte de estado se renumeró** (en vez de dejar el bit 1 vacío): INTRUSION=1, FUEGO=2, CAIDA=4, PUERTA=8,
+      `TODAS`=15. El panel decodifica por posición en `ANOMALIAS` (`comun.js`), que cambió igual. Un byte guardado
+      con el esquema viejo ya no significa lo mismo, pero el byte no se persiste (solo viaja por WebSocket).
+    - **El YOLO general ya no corre para la piscina**: lo usa solo rostros, y solo si hay zona `acceso`.
+    - **Una BD anterior sigue funcionando**: `consultas.leer_overrides` descarta los overrides `detectores.piscina.*`
+      y `alarmas.piscina.*` y quita «piscina» de las listas `camaras.<id>.detectores` (con `extra="forbid"` bastaría
+      una clave para invalidar todos los overrides); `zonas_de_camara` ignora las zonas de tipos que ya no existen;
+      y los medios de «Prueba con video» guardados con piscina pierden ese detector. Los eventos de piscina que ya
+      estén en el historial se conservan y se siguen mostrando con «Todas».
+    - El informe Word se actualizó en consecuencia (de 5 a 4 anomalías).
