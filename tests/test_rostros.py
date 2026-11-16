@@ -30,7 +30,7 @@ def test_comparar_coseno():
     assert comparar(ANA, np.zeros((0, 128), np.float32), []) == (-1.0, None)
 
 
-def correr(cfg, embedding_por_frame, persona_en_zona=True, cara_x=300, frames=20):
+def correr(cfg, embedding_por_frame, persona_en_zona=True, cara_x=300, frames=20, zona=ACCESO, caja_persona=None):
     caras = iter(embedding_por_frame)
 
     def detectar_falso(recorte, c):
@@ -39,7 +39,7 @@ def correr(cfg, embedding_por_frame, persona_en_zona=True, cara_x=300, frames=20
         return [] if emb is None else [Rostro((cara_x - 160, 100, 60, 60), emb)]
 
     def yolo_falso(frame):
-        caja = [250, 50, 350, 400] if persona_en_zona else [10, 50, 100, 400]
+        caja = caja_persona or ([250, 50, 350, 400] if persona_en_zona else [10, 50, 100, 400])
         return sv.Detections(xyxy=np.array([caja], np.float32), confidence=np.array([0.9], np.float32),
                              class_id=np.array([0]))
 
@@ -51,7 +51,7 @@ def correr(cfg, embedding_por_frame, persona_en_zona=True, cara_x=300, frames=20
     frame = np.zeros((480, 640, 3), np.uint8)
     obs_t, disparos = [], []
     for i in range(frames):
-        _, obs = analizador.analizar("sint", frame, i / 10, cfg, [ACCESO], ["rostros"], hora=datetime.now())
+        _, obs = analizador.analizar("sint", frame, i / 10, cfg, [zona], ["rostros"], hora=datetime.now())
         obs_t.append(obs[0])
         disparos += motor.procesar(obs)
     return obs_t, disparos
@@ -84,3 +84,14 @@ def test_sin_persona_en_zona_no_busca_rostros(cfg):
 def test_rostro_fuera_del_poligono_se_ignora(cfg):
     obs, disparos = correr(cfg, [EXTRANO] * 20, cara_x=30)  # cara en x=30, fuera de la zona (x 160..480)
     assert disparos == [] and all(o.detalle["rostros"] == 0 for o in obs)
+
+
+def test_persona_de_la_cintura_para_arriba_en_zona_que_no_llega_al_borde(cfg):
+    """Frente a la cámara la persona llega hasta el borde inferior de la imagen (sus «pies» quedan fuera de una
+    zona dibujada alrededor de la entrada). Igual hay que buscarle el rostro: cuenta que el bbox pise la zona."""
+    arriba = Zona(2, "sint", "Entrada", "acceso", [[0.25, 0.0], [0.75, 0.0], [0.75, 0.6], [0.25, 0.6]])
+    _, disparos = correr(cfg, [EXTRANO] * 20, zona=arriba, caja_persona=[250, 50, 350, 479])
+    assert len(disparos) == 1
+    # una persona que no toca la zona (toda por debajo) sigue sin contar
+    obs, disparos = correr(cfg, [EXTRANO] * 20, zona=arriba, caja_persona=[250, 300, 350, 479])
+    assert disparos == [] and all(o.detalle["personas"] == 0 for o in obs)

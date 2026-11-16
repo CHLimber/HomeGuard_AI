@@ -187,6 +187,30 @@ el mismo resultado en los 15.
   puerta más de 2 s cuenta como cambio. Para la feria: capturar la referencia con la luz del lugar, elegir una
   puerta que contraste con lo que hay detrás y, si hace falta, bajar `umbral_diferencia`.
 
-### Intrusión
+### Intrusión (YuNet + SFace reales)
 
-Sin medir: no hay videos de rostros ni residentes registrados.
+No hay residentes registrados ni videos propios, así que se armó una prueba con los videos subidos: como
+«residente» se registró al hombre de un anuncio (3 fotogramas de ese video) y como desconocidos se usaron cuatro
+personas de otros videos. Zona «acceso» hasta el 75 % de la altura de la imagen, `confianza_rostro: 0.80`.
+
+| Tramo | Esperado | Frames con rostro | Similitud (mín / mediana / máx) | Alarma |
+|---|---|---:|---|---|
+| Residente, 70 s | nada | 84 % | 0,21 / 0,95 / 1,00 | no (**VN**) |
+| Residente, final oscuro, 11 s | nada | 54 % | 0,72 / 0,79 / 0,84 | no (**VN**) |
+| Desconocido: hombre en un timbre, de costado | alarma | 30 % | −0,03 / 0,08 / 0,19 | a los 3,8 s (**VP**) |
+| Desconocida: presentadora de TV | alarma | 83 % | −0,04 / 0,07 / 0,16 | a los 0,6 s (**VP**) |
+| Desconocida: niña en un cumpleaños | alarma | 61 % | 0,02 / 0,16 / 0,24 | a los 0,4 s (**VP**) |
+| Desconocido: adulto mayor | alarma | 17 % | 0,01 / 0,10 / 0,20 | a los 2,6 s (**VP**) |
+| Personas de espaldas (sin rostro visible), 12 s | nada | 0 % | | no (**VN**) |
+
+| | Desconocidos con alarma | Falsas alarmas |
+|---|---:|---:|
+| Antes, zona de cuadro completo (`confianza_rostro: 0.90`) | 3 de 4 | 0 de 3 |
+| Antes, zona hasta el 75 % de la altura | 1 de 4 | 0 de 3 |
+| Después (decisión nº 58), cualquiera de las dos zonas | 4 de 4 | 0 de 3 |
+
+- El umbral de similitud 0,363 separa con mucho margen: desconocidos por debajo de 0,24, residente con mediana
+  0,95. El residente tuvo frames sueltos por debajo del umbral (mínimo 0,21) pero nunca 5 seguidos.
+- **Límite de esta prueba:** las fotos de registro salen del mismo video que se evalúa, así que la similitud del
+  residente está inflada, y es un solo residente. Hay que repetirla con los integrantes registrados desde el
+  dashboard y otra sesión de video. Tampoco se midió el engaño con una foto (no hay detección de vida).

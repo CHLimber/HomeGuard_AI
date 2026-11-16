@@ -240,15 +240,14 @@ funcione en una demo en vivo**.
     Resultado: 1/12 → 11/12 caídas reconocidas, sin alarmas en el tramo sin caída. Limitaciones: quien se dobla por
     la cintura y queda quieto 3 s puede disparar; los cortes de escena de una compilación crean desplomes falsos
     (no pasa con una cámara fija); las constantes `FRACCION_ERGUIDA`, `VENTANAS_ERGUIDA` y `MARGEN_CUERPO_CAIDO`
-    están en `caidas.py` y no en `config.yaml` porque no son umbrales para calibrar. **Falta pasar al Anexo C del
-    informe Word** los parámetros nuevos y `ventana_descenso_s` = 1,5.
+    están en `caidas.py` y no en `config.yaml` porque no son umbrales para calibrar. Pasado al informe Word (nº 59).
 56. **Fuego: umbral propio para la clase humo (16/11/2026).** Con 4 videos de incendios y 3 sin fuego, 2 de los 3
     negativos daban falsa alarma. Todas venían de la clase «humo» con confianza 0,5–0,7 en pocos frames (pared clara
     con luz cálida, cielo nublado); en los incendios reales el humo y el fuego pasan de 0,7 en cientos de frames.
     Se agrega `detectores.fuego.confianza_humo` (0,70); la clase fuego sigue con `confianza_capa2` (0,50), así una
     llama chica se detecta igual de rápido. Subir `confianza_capa2` a 0,70 para todo también eliminaba las falsas
-    alarmas, pero atrasaba 27 s la alarma del video de la cocina. Resultado: FP 2 → 0, VP 3 → 3. **Falta pasarlo
-    al Anexo C.** El incendio que no detecta (`living_canada`) es una llama blanca/azulada detrás de humo: la capa 1
+    alarmas, pero atrasaba 27 s la alarma del video de la cocina. Resultado: FP 2 → 0, VP 3 → 3. Pasado
+    al informe Word (nº 59). El incendio que no detecta (`living_canada`) es una llama blanca/azulada detrás de humo: la capa 1
     de color nunca se activa, así que el YOLO ni corre.
 57. **Puerta: compensación de iluminación (16/11/2026).** Medido con un banco sintético de 15 escenarios
     (`docs/PRUEBAS.md`, sección 7): apagar una luz (toda la imagen 45 niveles más oscura) contaba como puerta
@@ -257,4 +256,23 @@ funcione en una demo en vivo**.
     valor. Se desactiva con `detectores.puerta.compensar_iluminacion: false`. Es una corrección aditiva y global:
     no arregla una sombra que caiga solo sobre la puerta. Resultado en el banco: FP 2 → 1, VP 5 → 5. Lo que sigue
     fallando (puerta abierta que se parece a la cerrada, alguien parado delante más de 2 s) es propio de comparar
-    con una referencia y queda como limitación. **Falta pasarlo al Anexo C.**
+    con una referencia y queda como limitación. Pasado al informe Word (nº 59).
+58. **Intrusión: la persona cuenta si su caja pisa la zona, y YuNet con confianza 0,80 (16/11/2026).** Medido con
+    YuNet y SFace reales (`docs/PRUEBAS.md`, sección 7). Dos cambios:
+    - **Bug:** para decidir si había una persona en la zona «acceso» se usaba el punto inferior central de su caja
+      (los pies, el ancla por defecto de `sv.PolygonZone`). Frente a la cámara la persona se ve de la cintura para
+      arriba y su caja llega al borde inferior de la imagen; con una zona que no llegue a ese borde nunca se le
+      buscaba el rostro (0 a 1 % de los frames con una zona hasta el 75 % de la altura). Ahora cuenta la persona
+      cuya caja se superpone con la máscara de la zona. El rostro sigue teniendo que estar dentro del polígono.
+    - `detectores.rostros.confianza_rostro` 0,90 → **0,80**: con 0,90 YuNet encontraba el rostro en el 10 % de los
+      frames de un desconocido de costado y en el 1 % de otro; con 0,80, en el 30 % y el 17 %, y dieron alarma los 4
+      desconocidos en vez de 3. No aparecieron rostros falsos ni alarmas con el residente. Con 0,70 el resultado es
+      el mismo que con 0,80.
+    El residente tuvo algunos frames sueltos por debajo del umbral de similitud (mínimo 0,21), pero nunca 5 seguidos:
+    la votación 5 de 5 es la que lo protege, así que no conviene bajarla.
+59. **Informe Word actualizado (16/11/2026).** `HomeGuard AI Proyecto Investigacion.docx` (renombrado, antes con
+    guiones bajos) recoge las decisiones 55 a 58: Tabla 2 (reglas de fuego, caídas y puerta), apartados 5.1.5
+    (desplome), 5.1.8 (la persona cuenta si su caja pisa la zona) y 5.1.10 (compensación de luz), Tabla 7 con los
+    resultados preliminares y un párrafo que los explica, limitaciones 6.3 y Tabla C1 del Anexo C (confianza de
+    YuNet 0,8, humo 0,7, ventana de 1,5 s y tres filas nuevas). Se editó el XML del documento directamente; no se
+    tocaron las ecuaciones numeradas, así que el desplome está descrito en el texto y no como ecuación aparte.

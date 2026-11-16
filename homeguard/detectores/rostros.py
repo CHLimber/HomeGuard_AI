@@ -116,7 +116,17 @@ class DetectorRostros(Detector):
             if cfg.exigir_persona_yolo:
                 det = ctx.detecciones_generales()
                 if len(det):
-                    personas = int(np.sum(ctx.dentro_de_zona(zona, det) & (det.class_id == 0)))
+                    # Cuenta la persona cuyo bbox pisa la zona. No se usa el punto inferior central (los pies):
+                    # frente a la cámara la persona se ve de la cintura para arriba, sus «pies» quedan en el
+                    # borde inferior de la imagen y una zona dibujada alrededor de la entrada nunca la contaba.
+                    mascara = ctx.mascara_zona(zona)
+                    for (bx0, by0, bx1, by1), clase in zip(det.xyxy, det.class_id):
+                        if clase != 0:
+                            continue
+                        bx0, by0 = max(int(bx0), 0), max(int(by0), 0)
+                        bx1, by1 = min(int(np.ceil(bx1)), ctx.ancho), min(int(np.ceil(by1)), ctx.alto)
+                        if bx1 > bx0 and by1 > by0 and mascara[by0:by1, bx0:bx1].any():
+                            personas += 1
                 if personas == 0:
                     ctx.calibracion.setdefault("rostros", {})[zona.nombre] = {
                         "personas_en_zona": 0, "rostros": [], "umbral_similitud": cfg.umbral_similitud}

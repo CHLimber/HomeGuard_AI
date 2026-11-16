@@ -114,7 +114,7 @@ class CfgRostros(_Base):
     modelo_detector: str
     modelo_reconocedor: str
     umbral_similitud: float = Field(0.363, ge=-1, le=1)
-    confianza_rostro: float = Field(0.9, ge=0, le=1)
+    confianza_rostro: float = Field(0.8, ge=0, le=1)
     nms: float = Field(0.3, ge=0, le=1)
     tamano_min_rostro_px: int = Field(40, ge=0)
     usar_resolucion_original: bool = True

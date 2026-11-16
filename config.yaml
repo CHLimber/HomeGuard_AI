@@ -95,7 +95,7 @@ detectores:
     modelo_detector: models/face_detection_yunet_2023mar.onnx
     modelo_reconocedor: models/face_recognition_sface_2021dec.onnx
     umbral_similitud: 0.363      # similitud coseno mínima para considerar que el rostro es de un residente (OpenCV Zoo)
-    confianza_rostro: 0.90       # confianza mínima de YuNet para aceptar un rostro
+    confianza_rostro: 0.80       # confianza mínima de YuNet para aceptar un rostro (con 0,90 se perdían rostros de costado o con poca luz)
     nms: 0.30                    # supresión de no-máximos de YuNet
     tamano_min_rostro_px: 40     # rostros más chicos que esto (en la imagen original) se ignoran
     usar_resolucion_original: true  # busca rostros en el frame a resolución completa (mejor a distancia)

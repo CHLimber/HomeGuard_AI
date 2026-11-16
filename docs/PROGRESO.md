@@ -135,7 +135,10 @@ sección 7; decisiones nº 55 a 57):
 - **Fuego:** umbral propio para la clase humo (`confianza_humo: 0.70`). Falsas alarmas 2 → 0 en 3 videos sin fuego;
   3 de 4 incendios detectados, igual que antes.
 - **Puerta:** compensación de iluminación (`compensar_iluminacion`). En el banco sintético, FP 2 → 1.
-- Intrusión sigue sin medir (faltan videos de rostros y residentes registrados).
-- Pendiente del grupo: pasar al Anexo C del informe los parámetros nuevos y repetir la medición con videos propios.
+- **Intrusión:** la persona cuenta si su caja pisa la zona «acceso» (antes, con una zona que no llegaba al borde
+  inferior, a alguien visto de la cintura para arriba nunca se le buscaba el rostro) y `confianza_rostro` 0,90 → 0,80.
+  Desconocidos con alarma 3/4 → 4/4, sin falsas alarmas con el residente (decisión nº 58).
+- El informe Word quedó actualizado con todo esto (decisión nº 59).
+- Pendiente del grupo: repetir la medición con videos propios y con los integrantes registrados como residentes.
 - Problemas conocidos nuevos: una persona doblada por la cintura y quieta 3 s puede dar alarma de caída; alguien
   parado más de 2 s delante de la puerta da alarma de puerta; una puerta abierta con poco contraste no se detecta.
