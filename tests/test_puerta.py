@@ -60,3 +60,35 @@ def test_en_horario():
     assert en_horario(datetime(2026, 1, 1, 23, 0), ["22:00-06:00"])  # cruza medianoche
     assert en_horario(datetime(2026, 1, 1, 5, 0), ["22:00-06:00"])
     assert not en_horario(datetime(2026, 1, 1, 12, 0), [])
+
+
+def _correr_frames(cfg, frames, fps=15):
+    analizador = Analizador(Modelos(), {"puerta": DetectorPuerta()})
+    motor = MotorReglas(cfg.alarmas, cfg.motor)
+    disparos = []
+    for i, frame in enumerate(frames):
+        _, obs = analizador.analizar("sint", frame, i / fps, cfg, [ZONA], ["puerta"], hora=NOCHE)
+        disparos += motor.procesar(obs)
+    return disparos
+
+
+@pytest.mark.parametrize("metodo", ["absdiff", "xor"])
+def test_apagar_la_luz_no_es_puerta_abierta(cfg, videos_sinteticos, metodo):
+    """Toda la imagen se oscurece 45 niveles a los 4 s (se apaga una lámpara): con la compensación no dispara;
+    sin ella sí. Si además se abre la puerta, dispara igual."""
+    import numpy as np
+
+    cfg = cfg.model_copy(deep=True)
+    cfg.detectores.puerta.metodo = metodo
+    cfg.detectores.puerta.horarios_permitidos = []
+    cerrada = next(iter(leer_video(videos_sinteticos / "puerta.mp4")))
+    oscura = np.clip(cerrada.astype(np.int16) - 45, 0, 255).astype(np.uint8)
+    solo_luz = [cerrada] * 60 + [oscura] * 90
+    assert _correr_frames(cfg, solo_luz) == []
+
+    con_puerta = [f if i < 60 else np.clip(f.astype(np.int16) - 45, 0, 255).astype(np.uint8)
+                  for i, f in enumerate(leer_video(videos_sinteticos / "puerta.mp4"))]
+    assert len(_correr_frames(cfg, con_puerta)) == 1
+
+    cfg.detectores.puerta.compensar_iluminacion = False
+    assert len(_correr_frames(cfg, solo_luz)) == 1

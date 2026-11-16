@@ -1,4 +1,4 @@
-"""Anomalía 3: fuego / humo, en dos capas.
+"""Anomalía 2: fuego / humo, en dos capas.
 
 Capa 1 (barata, bitwise, todos los frames):
     color_fuego AND movimiento (XOR de cuantizados) AND zona
@@ -7,7 +7,8 @@ Capa 1 (barata, bitwise, todos los frames):
     de 9 bits del informe + tabla de 512) o "hsv" (cv2.inRange, sin bits, para comparar).
 Capa 2 (cara, solo si la capa 1 supera `umbral_capa1_pct`):
     YOLOv8n fire-smoke (rabahdev/fire-smoke-yolov8n, 0=smoke, 1=fire).
-La observación es positiva si capa 1 activa Y capa 2 con confianza > `confianza_capa2`.
+La observación es positiva si capa 1 activa Y capa 2 con confianza > `confianza_capa2`
+(fuego) o > `confianza_humo` (humo: el modelo lo confunde más, así que se le pide más).
 El motor exige eso en 3 de 5 frames (alarmas.fuego en config.yaml).
 
 Si la cámara no tiene zonas de tipo "fuego", se analiza la imagen completa.
@@ -25,6 +26,7 @@ from homeguard.detectores.modelos import Modelos
 from homeguard.preproceso import bitwise
 
 NOMBRES_CAPA2 = {0: "humo", 1: "fuego"}
+CLASE_HUMO = 0
 
 # detección de la capa 2: (clase, confianza, (x0, y0, x1, y1)) en coordenadas del frame de proceso
 Deteccion = tuple[int, float, tuple[int, int, int, int]]
@@ -100,16 +102,20 @@ class DetectorFuego(Detector):
             # Informe, regla de fuego: (color AND movimiento AND roi) > umbral_capa1 y luego capa 2 YOLO en N de M
             capa1 = pct_color_mov >= cfg.umbral_capa1_pct
 
-            conf2, mejor = 0.0, None
+            # mejor detección de la capa 2 en la zona; una que supera el umbral de su clase le gana a una que no
+            conf2, mejor, supera = 0.0, None, False
             if capa1:
                 if capa2 is None:
                     capa2 = self.inferir_capa2(frame, ctx.cfg)
                     self.llamadas_capa2 += 1
                 for clase, conf, caja in capa2:
                     cx, cy = (caja[0] + caja[2]) / 2, (caja[1] + caja[3]) / 2
-                    if clase in cfg.clases_capa2 and x0 <= cx <= x1 and y0 <= cy <= y1 and conf > conf2:
-                        conf2, mejor = conf, (clase, conf, caja)
-            activo = capa1 and conf2 > cfg.confianza_capa2
+                    if clase not in cfg.clases_capa2 or not (x0 <= cx <= x1 and y0 <= cy <= y1):
+                        continue
+                    pasa = conf > (cfg.confianza_humo if clase == CLASE_HUMO else cfg.confianza_capa2)
+                    if (pasa, conf) > (supera, conf2):
+                        conf2, mejor, supera = conf, (clase, conf, caja), pasa
+            activo = capa1 and supera
 
             ctx.calibracion.setdefault("fuego", {})[zona.nombre] = {
                 "capa1_pct_color": round(pct_color, 2),
@@ -118,7 +124,9 @@ class DetectorFuego(Detector):
                 "imagen_fija": ctx.fuente_estatica,
                 "capa2_ejecutada": capa1,
                 "capa2_confianza": round(conf2, 2),
+                "capa2_clase": NOMBRES_CAPA2.get(mejor[0]) if mejor else None,
                 "umbral_capa2": cfg.confianza_capa2,
+                "umbral_humo": cfg.confianza_humo,
             }
             if zona.id != -1 or capa1:
                 ctx.anotaciones.append(Anotacion((x0, y0, x1, y1),

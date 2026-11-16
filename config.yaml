@@ -110,7 +110,8 @@ detectores:
     modo_capa1: lut9       # color de la capa 1: "lut332" (índice de 8 bits + cv2.LUT), "lut9" (índice de 9 bits del informe + tabla de 512) o "hsv" (cv2.inRange)
     lut_archivo: ""        # tabla .npy hecha con scripts/generar_lut_fuego.py ("" = generarla con los rangos de arriba; no aplica a "hsv")
     umbral_capa1_pct: 0.50 # % de píxeles de la zona que deben ser color fuego Y en movimiento para activar la capa 2
-    confianza_capa2: 0.50  # confianza mínima del YOLO fire-smoke
+    confianza_capa2: 0.50  # confianza mínima del YOLO fire-smoke para la clase fuego
+    confianza_humo: 0.70   # confianza mínima para la clase humo (el modelo ve "humo" con 0,5-0,7 en paredes claras y luz cálida; el humo real pasa de 0,7)
     clases_capa2: [0, 1]   # 0=smoke, 1=fire
 
   caidas:
@@ -121,9 +122,12 @@ detectores:
     confianza_keypoint: 0.50      # keypoints con menos confianza se ignoran
     ratio_min: 1.4                # ancho/alto del bbox por encima de esto => cuerpo horizontal
     angulo_max_grados: 45         # torso (hombros->caderas) a menos de este ángulo de la horizontal
-    ventana_descenso_s: 1.0       # el paso de "de pie" a "en el suelo" tiene que ocurrir en menos de esto
+    ventana_descenso_s: 1.5       # el paso de "de pie" a "en el suelo" tiene que ocurrir en menos de esto (la pose suele perder a la persona hasta 1 s mientras cae)
     descenso_min_relativo: 0.25   # el centro tiene que bajar al menos esta fracción de la altura de la persona de pie
-    radio_asociacion_px: 120      # distancia horizontal máxima para asociar la persona caída con la que estaba de pie
+    colapso_alto_max: 0.60        # desplome: el alto del bbox queda por debajo de esta fracción del alto de pie y la cabeza bajó descenso_min_relativo => en el suelo aunque no se vea horizontal (0 = desactivado)
+    colapso_ratio_min: 0.80       # desplome: ancho/alto mínimo del bbox (agachada o en cuclillas el bbox queda angosto y no cuenta)
+    radio_asociacion_px: 120      # distancia horizontal máxima para asociar la persona caída con la que estaba de pie (mínimo, en px)
+    radio_asociacion_relativo: 0.50  # ...o esta fracción de la altura de la persona, lo que sea mayor (cerca de la cámara, al caer de costado el centro se corre más de 120 px)
     inmovil_desplazamiento_px: 20 # movimiento máximo del centro para considerarla inmóvil (mínimo, en px)
     inmovil_desplazamiento_relativo: 0.15  # ...o esta fracción del largo del cuerpo caído, lo que sea mayor
     levantarse_relativo: 0.25     # una persona cercana y más arriba que la caída en esta fracción de su altura => se levantó
@@ -139,6 +143,7 @@ detectores:
     duracion_min_s: 2.0      # tiempo que el cambio tiene que sostenerse
     horarios_permitidos: []  # ej. ["07:00-22:00"]: dentro de estos rangos la puerta NO dispara alarma. [] = vigilar siempre
     referencia_automatica: true  # si no hay referencia capturada, usa el primer frame como "puerta cerrada"
+    compensar_iluminacion: true  # resta a la zona el cambio de brillo del resto de la imagen (apagar una luz o nublarse no cuenta como puerta abierta)
 
 telegram:
   activo: true             # false = no envía nada (solo log); también con: python run.py --sin-telegram

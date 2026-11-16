@@ -85,10 +85,13 @@ def _consultar_eventos(sis: Sistema, tipo: str | None, camara: str | None, desde
         q = q.where(m.Evento.tipo == tipo)
     if camara:
         q = q.where(m.Evento.camara_id == camara)
-    if desde:
-        q = q.where(m.Evento.creado_en >= datetime.fromisoformat(desde))
-    if hasta:
-        q = q.where(m.Evento.creado_en <= datetime.fromisoformat(hasta))
+    try:
+        if desde:
+            q = q.where(m.Evento.creado_en >= datetime.fromisoformat(desde))
+        if hasta:
+            q = q.where(m.Evento.creado_en <= datetime.fromisoformat(hasta))
+    except ValueError as e:  # fecha mal escrita: 400 en vez de un error 500
+        raise HTTPException(400, "fecha inválida (usar AAAA-MM-DD o AAAA-MM-DDTHH:MM)") from e
     with sis.bd.sesion() as s:
         return [e.a_dict() for e in s.scalars(q.limit(limite))]
 

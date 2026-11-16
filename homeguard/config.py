@@ -131,6 +131,7 @@ class CfgFuego(_Base):
     lut_archivo: str = ""
     umbral_capa1_pct: float = Field(0.5, ge=0, le=100)
     confianza_capa2: float = Field(0.5, ge=0, le=1)
+    confianza_humo: float = Field(0.7, ge=0, le=1)
     clases_capa2: list[int] = Field(default_factory=lambda: [0, 1])
 
 
@@ -142,9 +143,12 @@ class CfgCaidas(_Base):
     confianza_keypoint: float = Field(0.5, ge=0, le=1)
     ratio_min: float = Field(1.4, gt=0)
     angulo_max_grados: float = Field(45, ge=0, le=90)
-    ventana_descenso_s: float = Field(1.0, gt=0)
+    ventana_descenso_s: float = Field(1.5, gt=0)
     descenso_min_relativo: float = Field(0.25, ge=0)
+    colapso_alto_max: float = Field(0.6, ge=0, le=1)
+    colapso_ratio_min: float = Field(0.8, ge=0)
     radio_asociacion_px: float = Field(120, gt=0)
+    radio_asociacion_relativo: float = Field(0.5, ge=0)
     inmovil_desplazamiento_px: float = Field(20, ge=0)
     inmovil_desplazamiento_relativo: float = Field(0.15, ge=0)
     levantarse_relativo: float = Field(0.25, ge=0)
@@ -161,6 +165,7 @@ class CfgPuerta(_Base):
     duracion_min_s: float = Field(2.0, ge=0)
     horarios_permitidos: list[str] = Field(default_factory=list)
     referencia_automatica: bool = True
+    compensar_iluminacion: bool = True
 
     @field_validator("horarios_permitidos")
     @classmethod

@@ -1,4 +1,4 @@
-"""Anomalía 5: puerta abierta fuera del horario permitido.
+"""Anomalía 4: puerta abierta fuera del horario permitido.
 
 Se compara la zona "puerta" con una imagen de referencia de la puerta cerrada:
   - método "absdiff": |gris - referencia| > umbral_diferencia
@@ -45,6 +45,15 @@ class _EstadoZona:
     origen: str                       # "archivo:<ruta>@<mtime>" o "automatica"
     umbral_bin: float = 0.0           # umbral de binarización fijado sobre la referencia (método xor)
     t_inicio_cambio: float | None = None
+    media_fuera: float | None = None  # gris medio del resto de la imagen cuando se tomó la referencia
+
+
+def media_fuera_de(gris: np.ndarray, x0: int, y0: int, x1: int, y1: int) -> float | None:
+    """Gris medio de la imagen sin contar el rectángulo de la zona: mide la luz ambiente, abra o no la puerta."""
+    resto = gris.size - (x1 - x0) * (y1 - y0)
+    if resto <= 0:  # la zona ocupa toda la imagen: no hay con qué comparar
+        return None
+    return (float(gris.sum()) - float(gris[y0:y1, x0:x1].sum())) / resto
 
 
 class DetectorPuerta(Detector):
@@ -85,12 +94,13 @@ class DetectorPuerta(Detector):
                 ref_completa = cv2.resize(ref_completa, (ctx.ancho, ctx.alto))
                 x0, y0, x1, y1 = bitwise.bbox_poligono(zona.puntos_px(ctx.ancho, ctx.alto), ctx.alto, ctx.ancho)
                 ref = self._preparar(ref_completa[y0:y1, x0:x1], desenfoque)
-                estado = _EstadoZona(ref, origen_archivo)
+                estado = _EstadoZona(ref, origen_archivo, media_fuera=media_fuera_de(ref_completa, x0, y0, x1, y1))
                 log.info("Puerta '%s' (%s): referencia cargada de %s", zona.nombre, ctx.camara_id, Path(zona.referencia).name)
         if estado is None:
             if not ctx.cfg.detectores.puerta.referencia_automatica:
                 return None
-            estado = _EstadoZona(recorte.copy(), "automatica")
+            x0, y0, x1, y1 = bitwise.bbox_poligono(zona.puntos_px(ctx.ancho, ctx.alto), ctx.alto, ctx.ancho)
+            estado = _EstadoZona(recorte.copy(), "automatica", media_fuera=media_fuera_de(ctx.gris, x0, y0, x1, y1))
             log.info("Puerta '%s' (%s): sin referencia capturada, se usa el primer frame", zona.nombre, ctx.camara_id)
         estado.umbral_bin, _ = cv2.threshold(estado.referencia, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         self._estados[clave] = estado
@@ -115,6 +125,16 @@ class DetectorPuerta(Detector):
             if estado.referencia.shape != recorte.shape:  # la zona cambió de tamaño: nueva referencia
                 self._estados.pop((ctx.camara_id, zona.id), None)
                 continue
+
+            # Si cambió la luz ambiente (se apagó una lámpara, se nubló), toda la imagen se aclara u oscurece: se
+            # le resta a la zona lo que cambió el resto de la imagen antes de comparar con la referencia.
+            delta_luz = 0.0
+            if cfg.compensar_iluminacion and estado.media_fuera is not None:
+                fuera = media_fuera_de(ctx.gris, x0, y0, x1, y1)
+                if fuera is not None:
+                    delta_luz = fuera - estado.media_fuera
+                    if abs(delta_luz) >= 1:
+                        recorte = np.clip(recorte.astype(np.int16) - round(delta_luz), 0, 255).astype(np.uint8)
 
             if cfg.metodo == "xor":
                 umbral = cfg.umbral_binarizacion or estado.umbral_bin
@@ -142,6 +162,7 @@ class DetectorPuerta(Detector):
                 "umbral_porcentaje": cfg.porcentaje_min,
                 "segundos_abierta": round(duracion, 1),
                 "en_horario_permitido": permitido,
+                "cambio_de_luz": round(delta_luz, 1),
             }
             ctx.anotaciones.append(Anotacion((x0, y0, x1, y1), f"{zona.nombre} {porcentaje:.0f}% {duracion:.1f}s", activo))
             eventos.append(PosibleEvento(

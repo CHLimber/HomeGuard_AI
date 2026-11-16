@@ -17,15 +17,16 @@ ZONA = Zona(id=1, camara_id="sint", nombre="Cocina", tipo="fuego",
 
 
 class Capa2Falsa:
-    """Simula el YOLO fire-smoke: devuelve 'fuego' con la confianza indicada en el centro de la imagen."""
+    """Simula el YOLO fire-smoke: devuelve 'fuego' (o la clase indicada) con esa confianza en el centro de la imagen."""
 
-    def __init__(self, confianza: float) -> None:
+    def __init__(self, confianza: float, clase: int = 1) -> None:
         self.confianza = confianza
+        self.clase = clase
         self.llamadas = 0
 
     def __call__(self, frame, cfg):
         self.llamadas += 1
-        return [(1, self.confianza, (280, 220, 360, 320))]
+        return [(self.clase, self.confianza, (280, 220, 360, 320))]
 
 
 def correr(cfg, frames, fps, capa2, zonas=(ZONA,)):
@@ -57,6 +58,15 @@ def test_capa2_con_baja_confianza_no_dispara(cfg, videos_sinteticos):
     ruta = videos_sinteticos / "fuego.mp4"
     _, disparos = correr(cfg, leer_video(ruta), verdad(ruta)["fps"], Capa2Falsa(0.3))
     assert disparos == []
+
+
+def test_humo_necesita_mas_confianza_que_fuego(cfg, videos_sinteticos):
+    """El modelo ve «humo» con 0,5-0,7 en paredes claras: con 0,6 el fuego dispara y el humo no; con 0,8 sí."""
+    ruta = videos_sinteticos / "fuego.mp4"
+    fps = verdad(ruta)["fps"]
+    assert len(correr(cfg, leer_video(ruta), fps, Capa2Falsa(0.6, clase=1))[1]) == 1
+    assert correr(cfg, leer_video(ruta), fps, Capa2Falsa(0.6, clase=0))[1] == []
+    assert len(correr(cfg, leer_video(ruta), fps, Capa2Falsa(0.8, clase=0))[1]) == 1
 
 
 def test_objeto_naranja_quieto_no_activa_capa1(cfg):

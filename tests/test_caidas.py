@@ -27,6 +27,16 @@ def acostado(cx=200.0, piso=400.0, largo=220.0) -> Persona:
     return Persona((x0, y0, x1, y1), kps, np.ones(17, np.float32))
 
 
+def desplomado(cx=200.0, piso=400.0, alto=95.0, ancho=100.0) -> Persona:
+    """En el suelo pero sin verse horizontal (cayó hacia la cámara, o está sentada/encogida): bbox bajo y más o
+    menos cuadrado, con el torso vertical en la imagen."""
+    x0, x1, y0, y1 = cx - ancho / 2, cx + ancho / 2, piso - alto, piso
+    kps = np.zeros((17, 2), np.float32)
+    kps[5], kps[6] = (cx - 15, y0 + 0.2 * alto), (cx + 15, y0 + 0.2 * alto)
+    kps[11], kps[12] = (cx - 12, y0 + 0.7 * alto), (cx + 12, y0 + 0.7 * alto)
+    return Persona((x0, y0, x1, y1), kps, np.ones(17, np.float32))
+
+
 def correr(cfg, secuencia):
     """secuencia: función t -> list[Persona]. Devuelve (observaciones con t, disparos)."""
     reloj = {"t": 0.0}
@@ -125,4 +135,70 @@ def test_si_la_pose_pierde_a_la_persona_caida_sigue_contando(cfg):
 def test_se_sienta_claramente_mas_arriba_cancela_la_caida(cfg):
     """Sentada (160 px de alto: su centro queda 45 px más arriba que acostada, más del 25 % de su altura) se levantó."""
     _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [acostado()] if t < 3.0 else [de_pie(pie=400, alto=160)])
+    assert disparos == []
+
+
+# -- desplome: en el suelo sin verse horizontal (docs/DECISIONES.md nº 55) ------------------------------------
+
+def test_caida_hacia_la_camara_dispara(cfg):
+    """Cae hacia la cámara: el bbox no queda ancho ni el torso horizontal, pero mide el 40 % de antes y la cabeza
+    bajó. Con el criterio «horizontal» solo, esta caída no se detectaba."""
+    assert angulo_torso(desplomado(), 0.3) > 80 and desplomado().ratio < cfg.detectores.caidas.ratio_min
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [desplomado()])
+    assert len(disparos) == 1 and 5.0 <= disparos[0].t <= 5.5
+
+
+def test_desplome_desactivado_con_colapso_cero(cfg):
+    cfg = cfg.model_copy(deep=True)  # el fixture es de sesión: no tocar el compartido
+    cfg.detectores.caidas.colapso_alto_max = 0.0
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [desplomado()])
+    assert disparos == []
+
+
+def test_en_cuclillas_no_es_caida(cfg):
+    """Agachada el bbox queda bajo pero angosto (ratio 0,58 < colapso_ratio_min): no es un desplome."""
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [de_pie(alto=120)])
+    assert disparos == []
+
+
+def test_persona_baja_junto_a_otra_que_sigue_de_pie_no_es_caida(cfg):
+    """Aparece alguien chico (un niño, alguien lejos) al lado de una persona que sigue de pie: nadie cayó."""
+    _, disparos = correr(cfg, lambda t: [de_pie()] if t < 2.0 else [de_pie(), desplomado(cx=260)])
+    assert disparos == []
+
+
+def test_de_dos_personas_juntas_cae_una(cfg):
+    _, disparos = correr(cfg, lambda t: [de_pie(), de_pie(cx=280)] if t < 2.0 else [de_pie(), desplomado(cx=280)])
+    assert len(disparos) == 1
+
+
+def test_sentarse_en_el_suelo_y_despues_acostarse_no_es_caida(cfg):
+    """Se sienta en el suelo, espera y se recuesta: la referencia «de pie» de antes de recostarse ya estaba baja."""
+    def secuencia(t):
+        if t < 2.0:
+            return [de_pie()]
+        return [de_pie(alto=130)] if t < 4.0 else [desplomado(alto=60)]
+    _, disparos = correr(cfg, secuencia)
+    assert disparos == []
+
+
+def test_caida_de_costado_cerca_de_la_camara(cfg):
+    """Cerca de la cámara la persona es grande y al caer de costado el centro se corre más que los 120 px fijos."""
+    _, disparos = correr(cfg, lambda t: [de_pie(cx=200, pie=440, alto=400)] if t < 2.0 else [acostado(cx=370, piso=440)])
+    assert len(disparos) == 1
+
+
+def test_desplomada_que_se_arrastra_reinicia_inmovilidad(cfg):
+    """Pasada la ventana ya no hay referencia de pie: la detección baja junto a la caída se sigue como la caída."""
+    def secuencia(t):
+        if t < 2.0:
+            return [de_pie()]
+        return [desplomado(cx=200 + min(t - 2.0, 3.0) * 30)]
+    _, disparos = correr(cfg, secuencia)
+    assert len(disparos) == 1 and disparos[0].t >= 7.0
+
+
+def test_se_va_quien_estaba_de_pie_junto_a_alguien_sentado_no_es_caida(cfg):
+    """Un adulto de pie al lado de un niño sentado sale del cuadro: el niño ya estaba ahí, nadie se desplomó."""
+    _, disparos = correr(cfg, lambda t: [de_pie(), desplomado(cx=260)] if t < 2.0 else [desplomado(cx=260)])
     assert disparos == []

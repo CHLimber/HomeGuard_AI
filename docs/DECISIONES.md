@@ -219,3 +219,42 @@ funcione en una demo en vivo**.
       y los medios de «Prueba con video» guardados con piscina pierden ese detector. Los eventos de piscina que ya
       estén en el historial se conservan y se siguen mostrando con «Todas».
     - El informe Word se actualizó en consecuencia (de 5 a 4 anomalías).
+55. **Caídas: criterio de «desplome» además del «horizontal» (16/11/2026).** El grupo reportó que la caída era lo
+    que menos se captaba. Medido con pose real sobre dos compilaciones de caídas de cámaras de timbre/seguridad
+    (ver `docs/PRUEBAS.md`, sección 7): el detector reconocía 1 de 12 caídas. Causa: «acostado» exigía bbox ancho
+    (ratio > 1,4) **y** torso a menos de 45°, y eso solo pasa con la cámara de costado; con la cámara alta o si la
+    persona cae hacia la cámara, el bbox queda casi cuadrado (ratio 0,9–1,3) y el torso a 30–90°. Además la pose
+    pierde a la persona hasta 1 s mientras cae. Cambios (umbrales en `config.yaml`, `detectores.caidas`):
+    - **Desplome** (criterio b): en el suelo si alto / alto de pie ≤ `colapso_alto_max` (0,60), la cabeza bajó
+      ≥ `descenso_min_relativo` × alto de pie y ancho/alto ≥ `colapso_ratio_min` (0,80; en cuclillas el bbox queda
+      angosto). `colapso_alto_max: 0` lo desactiva y deja solo el criterio del informe.
+    - No es desplome si **quien estaba de pie sigue de pie** (la persona baja es otra: un niño, alguien lejos), si
+      la referencia **ya venía bajando** (mide menos de 0,6 del alto máximo de los últimos 3 × `ventana_descenso_s`:
+      sentarse y después recostarse) o si esa persona baja **ya estaba ahí** antes.
+    - `radio_asociacion_relativo` (0,50 × altura): con la persona cerca de la cámara, al caer de costado el centro
+      se corre más que los 120 px fijos. `ventana_descenso_s` 1,0 → **1,5**.
+    - **Un acompañante de pie ya no cancela la caída**: «se levantó» solo si aparecen más personas de pie sobre la
+      caída que las que ya estaban a su lado cuando ocurrió.
+    - Una detección «no acostada» junto a la caída y de su mismo tamaño se sigue como la persona caída (si se
+      arrastra reinicia la inmovilidad).
+    Resultado: 1/12 → 11/12 caídas reconocidas, sin alarmas en el tramo sin caída. Limitaciones: quien se dobla por
+    la cintura y queda quieto 3 s puede disparar; los cortes de escena de una compilación crean desplomes falsos
+    (no pasa con una cámara fija); las constantes `FRACCION_ERGUIDA`, `VENTANAS_ERGUIDA` y `MARGEN_CUERPO_CAIDO`
+    están en `caidas.py` y no en `config.yaml` porque no son umbrales para calibrar. **Falta pasar al Anexo C del
+    informe Word** los parámetros nuevos y `ventana_descenso_s` = 1,5.
+56. **Fuego: umbral propio para la clase humo (16/11/2026).** Con 4 videos de incendios y 3 sin fuego, 2 de los 3
+    negativos daban falsa alarma. Todas venían de la clase «humo» con confianza 0,5–0,7 en pocos frames (pared clara
+    con luz cálida, cielo nublado); en los incendios reales el humo y el fuego pasan de 0,7 en cientos de frames.
+    Se agrega `detectores.fuego.confianza_humo` (0,70); la clase fuego sigue con `confianza_capa2` (0,50), así una
+    llama chica se detecta igual de rápido. Subir `confianza_capa2` a 0,70 para todo también eliminaba las falsas
+    alarmas, pero atrasaba 27 s la alarma del video de la cocina. Resultado: FP 2 → 0, VP 3 → 3. **Falta pasarlo
+    al Anexo C.** El incendio que no detecta (`living_canada`) es una llama blanca/azulada detrás de humo: la capa 1
+    de color nunca se activa, así que el YOLO ni corre.
+57. **Puerta: compensación de iluminación (16/11/2026).** Medido con un banco sintético de 15 escenarios
+    (`docs/PRUEBAS.md`, sección 7): apagar una luz (toda la imagen 45 niveles más oscura) contaba como puerta
+    abierta, con `absdiff` y con `xor`. Ahora el detector guarda, junto con la referencia, el gris medio del resto
+    de la imagen (todo menos el rectángulo de la zona) y antes de comparar le resta a la zona lo que cambió ese
+    valor. Se desactiva con `detectores.puerta.compensar_iluminacion: false`. Es una corrección aditiva y global:
+    no arregla una sombra que caiga solo sobre la puerta. Resultado en el banco: FP 2 → 1, VP 5 → 5. Lo que sigue
+    fallando (puerta abierta que se parece a la cerrada, alguien parado delante más de 2 s) es propio de comparar
+    con una referencia y queda como limitación. **Falta pasarlo al Anexo C.**
